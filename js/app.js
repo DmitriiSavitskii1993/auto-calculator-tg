@@ -380,37 +380,51 @@ function buildCopyText(r) {
   const mk = cfg.rates.market;
   const cur = CUR[c];
 
-  const rows = [];
-  rows.push(['РАСХОДЫ ПО ' + COUNTRY_UP[c], money(r.carCostRub + r.bankFee)]);
-  rows.push(['  Авто+доставка', fmtNum(r.foreignTotal) + ' ' + cur]);
-  rows.push(['  Курс', rateCopy(c, mk)]);
-  rows.push(['  В рублях', money(r.carCostRub)]);
-  if (r.bankFee > 0) rows.push([`  Банк ${r.bankFeePercent}%`, money(r.bankFee)]);
-  rows.push(['ТАМОЖНЯ', money(r.customsTotal)]);
-  rows.push(['  Пошлина+сбор', money(r.duty + r.customsFee)]);
-  if (r.input.isElectric) { rows.push(['  Акциз', money(r.excise)]); rows.push(['  НДС 20%', money(r.vat)]); }
-  rows.push([`  Утиль (${r.utilCoef})`, money(r.utilFee)]);
-  rows.push(['РАСХОДЫ ПО РФ', money(r.expensesSum + r.commission)]);
-  r.expenses.forEach(e => rows.push(['  ' + (e.short || e.label), money(e.value)]));
-  rows.push(['  Комиссия', money(r.commission)]);
-  const totalRow = ['ИТОГО ПОД КЛЮЧ', money(r.grandTotal)];
+  // блоки расходов с подытогами
+  const sections = [];
+  const foreignItems = [
+    ['  Авто+доставка', fmtNum(r.foreignTotal) + ' ' + cur],
+    ['  Курс', rateCopy(c, mk)],
+    ['  В рублях', money(r.carCostRub)],
+  ];
+  if (r.bankFee > 0) foreignItems.push([`  Банк ${r.bankFeePercent}%`, money(r.bankFee)]);
+  sections.push({ head: ['РАСХОДЫ ПО ' + COUNTRY_UP[c], money(r.carCostRub + r.bankFee)], items: foreignItems });
 
-  // фикс. ширина 30 символов — строки гарантированно влезают в чат без переносов
+  const customsItems = [['  Пошлина+сбор', money(r.duty + r.customsFee)]];
+  if (r.input.isElectric) { customsItems.push(['  Акциз', money(r.excise)]); customsItems.push(['  НДС 20%', money(r.vat)]); }
+  customsItems.push([`  Утиль (${r.utilCoef})`, money(r.utilFee)]);
+  sections.push({ head: ['ТАМОЖНЯ', money(r.customsTotal)], items: customsItems });
+
+  const rfItems = r.expenses.map(e => ['  ' + (e.short || e.label), money(e.value)]);
+  rfItems.push(['  Комиссия', money(r.commission)]);
+  sections.push({ head: ['РАСХОДЫ ПО РФ', money(r.expensesSum + r.commission)], items: rfItems });
+
+  // фикс. ширина 30; подытоги/итог — жирными цифрами (Unicode bold)
   const W = 30;
-  const line = (l, v) => (l.length + v.length + 1 > W)
-    ? l + ' ' + v
-    : l + ' '.repeat(W - l.length - v.length) + v;
-  const div = '━'.repeat(W);
+  const boldNum = (s) => s.replace(/[0-9]/g, d => String.fromCodePoint(0x1D7EC + (+d)));
+  const line = (l, v) => (l.length + v.length + 1 > W) ? l + ' ' + v : l + ' '.repeat(W - l.length - v.length) + v;
+  const lineBold = (l, v) => {
+    const sp = (l.length + v.length + 1 > W) ? ' ' : ' '.repeat(W - l.length - v.length);
+    return l + sp + boldNum(v);
+  };
+  const thin = '─'.repeat(W);
+  const heavy = '━'.repeat(W);
+
+  let body = '';
+  sections.forEach(sec => {
+    body += thin + '\n' + lineBold(sec.head[0], sec.head[1]) + '\n';
+    sec.items.forEach(([l, v]) => { body += line(l, v) + '\n'; });
+  });
+
   const stageLines = r.stages.filter(s => s.value > 0)
     .map((s, i) => `${i + 1}) ${s.short || s.label} — ${money(s.value)}`);
 
   return '```\n'
     + `🚗 WT — Расчёт авто\n`
     + `${flags[c]} ${params}\n`
-    + div + '\n'
-    + rows.map(([l, v]) => line(l, v)).join('\n') + '\n'
-    + div + '\n'
-    + line(totalRow[0], totalRow[1]) + '\n\n'
+    + body
+    + heavy + '\n'
+    + lineBold('ИТОГО ПОД КЛЮЧ', money(r.grandTotal)) + '\n\n'
     + 'Этапы оплаты:\n'
     + stageLines.join('\n') + '\n'
     + '```';
