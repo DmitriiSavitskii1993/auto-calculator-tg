@@ -1,0 +1,13 @@
+{
+  "name": "calc-auto-tg-bot",
+  "version": "1.0.0",
+  "description": "Telegram-бот для калькулятора растаможки авто (Mini App)",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "dependencies": {
+    "grammy": "^1.30.0",
+    "dotenv": "^16.4.5"
+  }
+}

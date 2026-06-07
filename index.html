@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Калькулятор авто из-за рубежа</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app">
+
+    <!-- Шапка -->
+    <header class="header">
+      <h1 class="title">🚗 Калькулятор авто</h1>
+      <button id="btnSettings" class="icon-btn" title="Настройки">⚙️</button>
+    </header>
+    <div id="cbrStatus" class="cbr-status">Курсы ЦБ: загрузка…</div>
+
+    <!-- Основной экран -->
+    <main id="screenCalc" class="screen">
+
+      <!-- Выбор страны -->
+      <div class="segmented" id="countryTabs">
+        <button class="seg active" data-country="jp">🇯🇵 Япония</button>
+        <button class="seg" data-country="kr">🇰🇷 Корея</button>
+        <button class="seg" data-country="cn">🇨🇳 Китай</button>
+      </div>
+
+      <!-- Тип авто -->
+      <label class="switch-row">
+        <span>Электрокар</span>
+        <input type="checkbox" id="isElectric" class="switch">
+      </label>
+
+      <!-- Параметры авто -->
+      <section class="card">
+        <div class="field">
+          <label for="age">Возраст авто</label>
+          <select id="age"></select>
+        </div>
+
+        <div class="field" id="fieldVolume">
+          <label for="volume">Объём двигателя, см³</label>
+          <input type="number" id="volume" inputmode="numeric" placeholder="2000">
+        </div>
+
+        <div class="field">
+          <label for="power">Мощность двигателя</label>
+          <div class="input-group">
+            <input type="number" id="power" inputmode="numeric" placeholder="150">
+            <div class="unit-toggle">
+              <button class="unit active" data-unit="hp">л.с.</button>
+              <button class="unit" data-unit="kw">кВт</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Цена и доставка -->
+      <section class="card">
+        <div class="field" id="fieldAuction">
+          <label for="auction">Аукцион (доставка + фрахт)</label>
+          <select id="auction"></select>
+        </div>
+
+        <div class="field">
+          <label for="carPrice">Цена авто <span id="curLabel1" class="cur">¥</span></label>
+          <input type="number" id="carPrice" inputmode="numeric" placeholder="1000000">
+        </div>
+
+        <div class="field">
+          <label for="delivery">Доставка + фрахт <span id="curLabel2" class="cur">¥</span></label>
+          <input type="number" id="delivery" inputmode="numeric" placeholder="126900">
+        </div>
+
+        <div class="field" id="fieldBank">
+          <label for="bank">Банк оплаты (курс)</label>
+          <select id="bank">
+            <option value="ATB">АТБ Банк</option>
+            <option value="VTB">ВТБ Банк</option>
+          </select>
+        </div>
+      </section>
+
+      <!-- Расходы по РФ -->
+      <section class="card">
+        <div class="card-head">Расходы по РФ, ₽</div>
+        <div id="expenseList"></div>
+        <div class="field">
+          <label for="commission">Комиссия компании, ₽</label>
+          <input type="number" id="commission" inputmode="numeric">
+        </div>
+      </section>
+
+      <!-- Результат -->
+      <section id="result" class="result hidden"></section>
+    </main>
+
+    <!-- Экран настроек -->
+    <section id="screenSettings" class="screen hidden">
+      <div class="settings-head">
+        <button id="btnBack" class="icon-btn">←</button>
+        <h2>Настройки</h2>
+      </div>
+
+      <section class="card">
+        <div class="card-head">Курсы ЦБ РФ
+          <button id="btnRefreshCbr" class="mini-btn">⟳ Обновить</button>
+        </div>
+        <div class="grid2">
+          <label>USD <input type="number" step="0.0001" data-rate="cbr.USD"></label>
+          <label>EUR <input type="number" step="0.0001" data-rate="cbr.EUR"></label>
+          <label>JPY (за 1 ¥) <input type="number" step="0.0001" data-rate="cbr.JPY"></label>
+          <label>KRW (за 1 ₩) <input type="number" step="0.00001" data-rate="cbr.KRW"></label>
+          <label>CNY <input type="number" step="0.0001" data-rate="cbr.CNY"></label>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">Рыночные курсы (платёж за авто)</div>
+        <div class="grid2">
+          <label>JPY за 100 (АТБ) <input type="number" step="0.01" data-rate="market.JPY100_ATB"></label>
+          <label>JPY за 100 (ВТБ) <input type="number" step="0.01" data-rate="market.JPY100_VTB"></label>
+          <label>CNY продажа <input type="number" step="0.01" data-rate="market.CNY"></label>
+          <label>USDT → RUB <input type="number" step="0.01" data-rate="market.USDT_RUB"></label>
+          <label>KRW за 1 USDT <input type="number" step="1" data-rate="market.KRW_per_USDT"></label>
+          <label>USD продажа <input type="number" step="0.01" data-rate="market.USD"></label>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">Параметры электрокаров</div>
+        <div class="grid2">
+          <label>Пошлина, % <input type="number" step="0.01" data-ev="evDutyPercent"></label>
+          <label>НДС, % <input type="number" step="0.01" data-ev="evVatPercent"></label>
+        </div>
+        <p class="hint">⚠️ Расчёт электрокаров (коммерческий ввоз) приблизительный — сверьте с вашей таблицей и при необходимости поправьте ставки.</p>
+      </section>
+
+      <div class="settings-actions">
+        <button id="btnSaveSettings" class="primary-btn">Сохранить</button>
+        <button id="btnResetSettings" class="ghost-btn">Сбросить всё</button>
+      </div>
+      <p class="hint">Правки сохраняются на этом устройстве. Чтобы поделиться настройками со всеми — нужен бэкенд (см. README).</p>
+    </section>
+
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/calc.js"></script>
+  <script src="js/rates.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,126 @@
+/* =========================================================================
+ *  style.css — оформление Mini App (нативный вид Telegram + светлый запасной)
+ * ========================================================================= */
+:root {
+  --bg: var(--tg-theme-bg-color, #f2f3f5);
+  --card: var(--tg-theme-secondary-bg-color, #ffffff);
+  --text: var(--tg-theme-text-color, #1a1a1a);
+  --hint: var(--tg-theme-hint-color, #8a8d93);
+  --link: var(--tg-theme-link-color, #2e7cf6);
+  --btn: var(--tg-theme-button-color, #2e7cf6);
+  --btn-text: var(--tg-theme-button-text-color, #ffffff);
+  --border: rgba(128, 128, 128, .22);
+  --accent: #2e7cf6;
+  --good: #25a567;
+  --radius: 14px;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.4;
+  padding-bottom: 40px;
+}
+.app { max-width: 560px; margin: 0 auto; padding: 12px 14px; }
+.hidden { display: none !important; }
+
+/* --- Шапка --- */
+.header { display: flex; align-items: center; justify-content: space-between; }
+.title { font-size: 20px; font-weight: 700; margin: 6px 0; }
+.icon-btn {
+  background: none; border: none; color: var(--text);
+  font-size: 22px; cursor: pointer; padding: 6px; border-radius: 10px;
+}
+.icon-btn:active { background: var(--border); }
+.cbr-status { font-size: 12px; color: var(--hint); margin-bottom: 12px; }
+
+/* --- Сегментированный переключатель стран --- */
+.segmented {
+  display: flex; gap: 4px; background: var(--card);
+  padding: 4px; border-radius: var(--radius); margin-bottom: 12px;
+}
+.seg {
+  flex: 1; border: none; background: none; color: var(--text);
+  padding: 9px 4px; border-radius: 10px; font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: background .15s;
+}
+.seg.active { background: var(--btn); color: var(--btn-text); }
+
+/* --- Переключатель электрокара --- */
+.switch-row {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--card); padding: 12px 14px; border-radius: var(--radius);
+  margin-bottom: 12px; font-weight: 600;
+}
+.switch { width: 46px; height: 28px; appearance: none; background: var(--border);
+  border-radius: 20px; position: relative; cursor: pointer; transition: background .2s; }
+.switch:checked { background: var(--good); }
+.switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px;
+  background: #fff; border-radius: 50%; transition: transform .2s; }
+.switch:checked::after { transform: translateX(18px); }
+
+/* --- Карточки и поля --- */
+.card { background: var(--card); border-radius: var(--radius); padding: 14px; margin-bottom: 12px; }
+.card-head { font-weight: 700; font-size: 15px; margin-bottom: 10px;
+  display: flex; align-items: center; justify-content: space-between; }
+.field { margin-bottom: 12px; }
+.field:last-child { margin-bottom: 0; }
+.field label { display: block; font-size: 13px; color: var(--hint); margin-bottom: 5px; }
+.cur { color: var(--accent); font-weight: 700; }
+
+input[type=number], input[type=text], select {
+  width: 100%; padding: 11px 12px; font-size: 16px;
+  border: 1px solid var(--border); border-radius: 10px;
+  background: var(--bg); color: var(--text); outline: none;
+}
+input:focus, select:focus { border-color: var(--accent); }
+
+.input-group { display: flex; gap: 8px; }
+.input-group input { flex: 1; }
+.unit-toggle { display: flex; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.unit { border: none; background: none; color: var(--hint); padding: 0 12px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.unit.active { background: var(--btn); color: var(--btn-text); }
+
+/* --- Список расходов --- */
+.exp-item { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.exp-item .exp-label { flex: 1; font-size: 13px; color: var(--text); }
+.exp-item input { width: 110px; padding: 8px; font-size: 14px; }
+
+/* --- Результат --- */
+.result { background: var(--card); border-radius: var(--radius); padding: 16px; margin-bottom: 12px;
+  border: 2px solid var(--accent); }
+.result .total { text-align: center; margin-bottom: 14px; }
+.result .total .label { font-size: 13px; color: var(--hint); }
+.result .total .value { font-size: 30px; font-weight: 800; color: var(--accent); }
+.row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; border-bottom: 1px solid var(--border); }
+.row:last-child { border-bottom: none; }
+.row .k { color: var(--hint); }
+.row .v { font-weight: 600; text-align: right; }
+.row.sub .k { padding-left: 12px; font-size: 13px; }
+.section-title { font-weight: 700; font-size: 14px; margin: 14px 0 4px; }
+.method-tag { font-size: 11px; color: var(--hint); }
+.result .grand { border-top: 2px solid var(--accent); margin-top: 8px; padding-top: 10px; }
+.result .grand .v { font-size: 18px; color: var(--accent); }
+
+/* --- Настройки --- */
+.settings-head { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
+.settings-head h2 { font-size: 18px; margin: 0; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.grid2 label { font-size: 12px; color: var(--hint); }
+.grid2 input { margin-top: 4px; }
+.mini-btn { font-size: 12px; padding: 5px 10px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); border-radius: 8px; cursor: pointer; }
+.settings-actions { display: flex; gap: 10px; margin: 6px 0 10px; }
+.primary-btn { flex: 1; background: var(--btn); color: var(--btn-text); border: none;
+  padding: 13px; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; }
+.ghost-btn { background: none; border: 1px solid var(--border); color: var(--text);
+  padding: 13px 16px; border-radius: 12px; font-size: 14px; cursor: pointer; }
+.hint { font-size: 12px; color: var(--hint); margin: 8px 0; }
+
+/* Кнопка расчёта (если MainButton недоступна — например в браузере) */
+.calc-btn { width: 100%; background: var(--btn); color: var(--btn-text); border: none;
+  padding: 15px; border-radius: 12px; font-size: 17px; font-weight: 700; cursor: pointer; margin-bottom: 12px; }
