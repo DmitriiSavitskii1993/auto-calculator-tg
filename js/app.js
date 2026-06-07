@@ -399,20 +399,15 @@ function buildCopyText(r) {
   rfItems.push(['  Комиссия', money(r.commission)]);
   sections.push({ head: ['РАСХОДЫ ПО РФ', money(r.expensesSum + r.commission)], items: rfItems });
 
-  // фикс. ширина 30; подытоги/итог — жирными цифрами (Unicode bold)
+  // фикс. ширина 30; подытоги — ЗАГЛАВНЫМИ + тонкие линии-разделители, итог — толстой линией
   const W = 30;
-  const boldNum = (s) => s.replace(/[0-9]/g, d => String.fromCodePoint(0x1D7EC + (+d)));
   const line = (l, v) => (l.length + v.length + 1 > W) ? l + ' ' + v : l + ' '.repeat(W - l.length - v.length) + v;
-  const lineBold = (l, v) => {
-    const sp = (l.length + v.length + 1 > W) ? ' ' : ' '.repeat(W - l.length - v.length);
-    return l + sp + boldNum(v);
-  };
   const thin = '─'.repeat(W);
   const heavy = '━'.repeat(W);
 
   let body = '';
   sections.forEach(sec => {
-    body += thin + '\n' + lineBold(sec.head[0], sec.head[1]) + '\n';
+    body += thin + '\n' + line(sec.head[0], sec.head[1]) + '\n';
     sec.items.forEach(([l, v]) => { body += line(l, v) + '\n'; });
   });
 
@@ -424,7 +419,8 @@ function buildCopyText(r) {
     + `${flags[c]} ${params}\n`
     + body
     + heavy + '\n'
-    + lineBold('ИТОГО ПОД КЛЮЧ', money(r.grandTotal)) + '\n\n'
+    + line('ИТОГО ПОД КЛЮЧ', money(r.grandTotal)) + '\n'
+    + heavy + '\n\n'
     + 'Этапы оплаты:\n'
     + stageLines.join('\n') + '\n'
     + '```';
