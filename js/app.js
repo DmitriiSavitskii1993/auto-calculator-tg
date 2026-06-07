@@ -21,6 +21,7 @@ const fmt = (n) => Math.round(n).toLocaleString('ru-RU') + ' ₽';
 const fmtNum = (n) => Math.round(n).toLocaleString('ru-RU');
 
 let cfg = buildConfig();
+let lastCopyText = '';
 
 /* ============================ ИНИЦИАЛИЗАЦИЯ ============================ */
 function init() {
@@ -126,6 +127,15 @@ function bindEvents() {
     $$('.unit').forEach(x => x.classList.toggle('active', x === u));
   }));
 
+  // копирование расчёта (кнопка появляется внутри результата)
+  $('#result').addEventListener('click', async (e) => {
+    if (e.target && e.target.id === 'btnCopy') {
+      const ok = await copyToClipboard(lastCopyText);
+      haptic(ok ? 'medium' : 'light');
+      toast(ok ? '✅ Расчёт скопирован — вставьте в чат' : 'Не удалось скопировать');
+    }
+  });
+
   $('#auction').addEventListener('change', (e) => {
     const idx = e.target.value;
     if (idx !== '') $('#delivery').value = CALC_DATA.auctions[idx].fob;
@@ -153,6 +163,8 @@ function toast(msg) { if (tg && tg.showPopup) { try { tg.showPopup({ message: ms
 /* ============================ РАСЧЁТ ============================ */
 function onCalculate() {
   haptic('medium');
+  // свернуть клавиатуру, чтобы не мешала смотреть результат
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   const preset = cfg.expensePresets[state.country];
   const expenses = $$('#expenseList [data-exp]').map((el, i) => ({
     label: preset.items[i].label, value: parseFloat(el.value) || 0,
@@ -217,9 +229,62 @@ function renderResult(r) {
 
     <div class="section-title">Этапы оплаты</div>
     ${stageRows}
+
+    <button class="copy-btn" id="btnCopy">📋 Скопировать расчёт</button>
   `;
+  lastCopyText = buildCopyText(r);
   $('#result').classList.remove('hidden');
   $('#result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/* --- сборка текста расчёта (клиентская короткая версия, код-блок) --- */
+function buildCopyText(r) {
+  const flags = { jp: '🇯🇵', kr: '🇰🇷', cn: '🇨🇳' };
+  const ageOpts = r.input.isElectric ? CALC_DATA.ageOptionsEv : CALC_DATA.ageOptions;
+  const ageLabel = (ageOpts.find(o => o.id === r.input.age) || {}).label || '';
+  const params = r.input.isElectric
+    ? `${ageLabel} · ${Math.round(r.input.powerKw)} кВт`
+    : `${ageLabel} · ${fmtNum(r.input.volumeCc)} см³ · ${Math.round(r.input.powerHp)} л.с.`;
+
+  const money = (n) => fmtNum(n).replace(/ /g, ' ') + ' ₽';
+  const rows = [
+    ['Авто + доставка', money(r.carCostRub + r.bankFee)],
+    ['Таможенные платежи', money(r.customsTotal)],
+    ['Услуги и оформление', money(r.expensesSum)],
+    ['Комиссия', money(r.commission)],
+  ];
+  const totalRow = ['ИТОГО под ключ', money(r.grandTotal)];
+
+  // ширина столбца для выравнивания значений по правому краю
+  const w = Math.max(...rows.concat([totalRow]).map(([l, v]) => l.length + v.length)) + 3;
+  const line = (l, v) => l + ' '.repeat(Math.max(1, w - l.length - v.length)) + v;
+  const div = '━'.repeat(w);
+
+  return '```\n'
+    + `🚗 WT — Расчёт авто\n`
+    + `${flags[r.input.country]} ${params}\n`
+    + `${div}\n`
+    + rows.map(([l, v]) => line(l, v)).join('\n') + '\n'
+    + `${div}\n`
+    + line(totalRow[0], totalRow[1]) + '\n'
+    + '```';
+}
+
+/* --- копирование в буфер обмена с запасным вариантом --- */
+async function copyToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (e) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch (e2) { return false; }
+  }
 }
 
 function hideResult() { $('#result').classList.add('hidden'); }
