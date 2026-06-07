@@ -295,7 +295,32 @@ function onCalculate() {
   renderResult(r);
 }
 
+/* родительный падеж страны + флаг для подзаголовка */
+const COUNTRY_GEN = { jp: 'Японии 🇯🇵', kr: 'Корее 🇰🇷', cn: 'Китаю 🇨🇳' };
+const COUNTRY_UP = { jp: 'ЯПОНИИ', kr: 'КОРЕЕ', cn: 'КИТАЮ' };
+
+/* строка курса для экрана */
+function rateDisplay(c, m) {
+  if (c === 'jp') return `¥100 = ${m.JPY100_ATB} ₽`;
+  if (c === 'cn') return `¥ = ${m.CNY} ₽`;
+  if (c === 'kr') return `${fmtNum(m.KRW_per_USDT)} ₩ = 1 USDT · 1 USDT = ${m.USDT_RUB} ₽`;
+  return '';
+}
+/* строка курса для копирования (компактная) */
+function rateCopy(c, m) {
+  if (c === 'jp') return `¥100=${m.JPY100_ATB}₽`;
+  if (c === 'cn') return `¥=${m.CNY}₽`;
+  if (c === 'kr') return `${fmtNum(m.KRW_per_USDT)}₩/USDT · USDT=${m.USDT_RUB}₽`;
+  return '';
+}
+
 function renderResult(r) {
+  const c = r.input.country;
+  const m = cfg.rates.market;
+  const cur = CUR[c];
+  const foreignBlock = r.carCostRub + r.bankFee;
+  const rfBlock = r.expensesSum + r.commission;
+
   const evRows = r.input.isElectric ? `
     <div class="row sub"><span class="k">Акциз (${fmtNum(r.input.powerHp)} л.с.)</span><span class="v">${fmt(r.excise)}</span></div>
     <div class="row sub"><span class="k">НДС 20%</span><span class="v">${fmt(r.vat)}</span></div>` : '';
@@ -312,26 +337,27 @@ function renderResult(r) {
       <div class="value">${fmt(r.grandTotal)}</div>
     </div>
 
-    <div class="row"><span class="k">Цена авто + доставка</span><span class="v">${fmt(r.carCostRub)}</span></div>
-    ${r.bankFee > 0 ? `<div class="row sub"><span class="k">Комиссия банка за перевод (${r.bankFeePercent}%)</span><span class="v">${fmt(r.bankFee)}</span></div>` : ''}
-    <div class="row"><span class="k">Таможенная стоимость (ЦБ)</span><span class="v">${fmt(r.customsValueRub)}</span></div>
+    <div class="sec-head"><span>Расходы по ${COUNTRY_GEN[c]}</span><span class="sec-sum">${fmt(foreignBlock)}</span></div>
+    <div class="row sub"><span class="k">Цена авто + доставка</span><span class="v">${fmtNum(r.foreignTotal)} ${cur}</span></div>
+    <div class="row sub"><span class="k">Курс</span><span class="v">${rateDisplay(c, m)}</span></div>
+    <div class="row sub"><span class="k">В рублях</span><span class="v">${fmt(r.carCostRub)}</span></div>
+    ${r.bankFee > 0 ? `<div class="row sub"><span class="k">Комиссия банка (${r.bankFeePercent}%)</span><span class="v">${fmt(r.bankFee)}</span></div>` : ''}
 
-    <div class="section-title">Таможенные платежи</div>
-    <div class="row sub"><span class="k">Пошлина <span class="method-tag">(${r.dutyMethod})</span></span><span class="v">${fmt(r.duty)}</span></div>
+    <div class="sec-head"><span>Таможенные платежи</span><span class="sec-sum">${fmt(r.customsTotal)}</span></div>
+    <div class="row sub"><span class="k">Пошлина и таможенный сбор <span class="method-tag">(${r.dutyMethod})</span></span><span class="v">${fmt(r.duty + r.customsFee)}</span></div>
     ${evRows}
-    <div class="row sub"><span class="k">Таможенный сбор</span><span class="v">${fmt(r.customsFee)}</span></div>
     <div class="row sub"><span class="k">Утильсбор (коэф. ${r.utilCoef})</span><span class="v">${fmt(r.utilFee)}</span></div>
 
-    <div class="section-title">Услуги и расходы по РФ</div>
+    <div class="sec-head"><span>Услуги и расходы по РФ</span><span class="sec-sum">${fmt(rfBlock)}</span></div>
     ${expRows}
     <div class="row sub"><span class="k">Комиссия компании</span><span class="v">${fmt(r.commission)}</span></div>
 
-    <div class="row grand"><span class="k">ИТОГО</span><span class="v">${fmt(r.grandTotal)}</span></div>
+    <div class="row grand"><span class="k">ИТОГО под ключ</span><span class="v">${fmt(r.grandTotal)}</span></div>
 
     <div class="section-title">Этапы оплаты</div>
     ${stageRows}
 
-    <button class="copy-btn" id="btnCopy">📋 Скопировать расчёт</button>
+    <button class="copy-btn" id="btnCopy">📋 Скопировать расчёт для клиента</button>
   `;
   lastCopyText = buildCopyText(r);
   $('#result').classList.remove('hidden');
@@ -348,26 +374,40 @@ function buildCopyText(r) {
     : `${ageLabel} · ${fmtNum(r.input.volumeCc)} см³ · ${Math.round(r.input.powerHp)} л.с.`;
 
   const money = (n) => fmtNum(n).replace(/ /g, ' ') + ' ₽';
-  const rows = [
-    ['Авто + доставка', money(r.carCostRub + r.bankFee)],
-    ['Таможенные платежи', money(r.customsTotal)],
-    ['Услуги и оформление', money(r.expensesSum)],
-    ['Комиссия', money(r.commission)],
-  ];
-  const totalRow = ['ИТОГО под ключ', money(r.grandTotal)];
+  const c = r.input.country;
+  const mk = cfg.rates.market;
+  const cur = CUR[c];
 
-  // ширина столбца для выравнивания значений по правому краю
-  const w = Math.max(...rows.concat([totalRow]).map(([l, v]) => l.length + v.length)) + 3;
+  const rows = [];
+  rows.push(['РАСХОДЫ ПО ' + COUNTRY_UP[c], money(r.carCostRub + r.bankFee)]);
+  rows.push(['  Авто + доставка', fmtNum(r.foreignTotal) + ' ' + cur]);
+  rows.push(['  Курс', rateCopy(c, mk)]);
+  rows.push(['  В рублях', money(r.carCostRub)]);
+  if (r.bankFee > 0) rows.push([`  Комиссия банка ${r.bankFeePercent}%`, money(r.bankFee)]);
+  rows.push(['ТАМОЖЕННЫЕ ПЛАТЕЖИ', money(r.customsTotal)]);
+  rows.push(['  Пошлина и сбор', money(r.duty + r.customsFee)]);
+  if (r.input.isElectric) { rows.push(['  Акциз', money(r.excise)]); rows.push(['  НДС 20%', money(r.vat)]); }
+  rows.push([`  Утильсбор (коэф ${r.utilCoef})`, money(r.utilFee)]);
+  rows.push(['УСЛУГИ И РАСХОДЫ ПО РФ', money(r.expensesSum + r.commission)]);
+  r.expenses.forEach(e => rows.push(['  ' + e.label, money(e.value)]));
+  rows.push(['  Комиссия компании', money(r.commission)]);
+  const totalRow = ['ИТОГО ПОД КЛЮЧ', money(r.grandTotal)];
+
+  // ширина столбца (ограничим, чтобы длинные подписи не растягивали таблицу)
+  const w = Math.min(40, Math.max(...rows.concat([totalRow]).map(([l, v]) => l.length + v.length)) + 2);
   const line = (l, v) => l + ' '.repeat(Math.max(1, w - l.length - v.length)) + v;
   const div = '━'.repeat(w);
+  const stageLines = r.stages.filter(s => s.value > 0).map((s, i) => `${i + 1}) ${s.label}: ${money(s.value)}`);
 
   return '```\n'
     + `🚗 WT — Расчёт авто\n`
-    + `${flags[r.input.country]} ${params}\n`
-    + `${div}\n`
+    + `${flags[c]} ${params}\n`
+    + div + '\n'
     + rows.map(([l, v]) => line(l, v)).join('\n') + '\n'
-    + `${div}\n`
-    + line(totalRow[0], totalRow[1]) + '\n'
+    + div + '\n'
+    + line(totalRow[0], totalRow[1]) + '\n\n'
+    + 'Этапы оплаты:\n'
+    + stageLines.join('\n') + '\n'
     + '```';
 }
 

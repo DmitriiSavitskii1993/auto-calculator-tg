@@ -106,6 +106,10 @@ input:focus, select:focus { border-color: var(--accent); }
 .row .v { font-weight: 600; text-align: right; }
 .row.sub .k { padding-left: 12px; font-size: 13px; }
 .section-title { font-weight: 700; font-size: 14px; margin: 14px 0 4px; }
+.sec-head { display: flex; justify-content: space-between; align-items: center;
+  font-weight: 700; font-size: 14px; margin: 16px 0 6px; gap: 8px; }
+.sec-head > span:first-child { color: var(--text); }
+.sec-sum { color: var(--good); font-weight: 800; white-space: nowrap; }
 .method-tag { font-size: 11px; color: var(--hint); }
 .result .grand { border-top: 2px solid var(--accent); margin-top: 8px; padding-top: 10px; }
 .result .grand .v { font-size: 18px; color: var(--accent); }
