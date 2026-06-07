@@ -103,6 +103,7 @@ function renderExpenses() {
       <input type="number" inputmode="numeric" data-exp="${i}" value="${it.value}">
     </div>`).join('');
   $('#commission').value = preset.commission;
+  $('#bankFee').value = preset.bankFeePercent != null ? preset.bankFeePercent : 0;
 }
 
 /* ============================ СОБЫТИЯ ============================ */
@@ -167,6 +168,7 @@ function onCalculate() {
     powerKw: state.powerUnit === 'kw' ? powerVal : null,
     carPrice: num('#carPrice'),
     deliveryForeign: num('#delivery'),
+    bankFeePercent: num('#bankFee'),
     bank: $('#bank').value,
     commission: num('#commission'),
     expenses,
@@ -198,6 +200,7 @@ function renderResult(r) {
     </div>
 
     <div class="row"><span class="k">Цена авто + доставка</span><span class="v">${fmt(r.carCostRub)}</span></div>
+    ${r.bankFee > 0 ? `<div class="row sub"><span class="k">Комиссия банка за перевод (${r.bankFeePercent}%)</span><span class="v">${fmt(r.bankFee)}</span></div>` : ''}
     <div class="row"><span class="k">Таможенная стоимость (ЦБ)</span><span class="v">${fmt(r.customsValueRub)}</span></div>
 
     <div class="section-title">Таможенные платежи</div>

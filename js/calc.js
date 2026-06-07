@@ -142,6 +142,9 @@ function calculate(input, cfg) {
 
   // реальный платёж за авто (рыночный курс)
   const carCostRub = priceToRub(input.country, foreignTotal, cfg.rates, input.bank);
+  // комиссия банка за перевод средств за границу (% от платежа за авто+логистику)
+  const bankFeePercent = Number(input.bankFeePercent) || 0;
+  const bankFee = carCostRub * bankFeePercent / 100;
   // таможенная стоимость (курс ЦБ)
   const customsValueRub = priceToRubCbr(input.country, foreignTotal, cfg.rates);
   const customsValueEur = customsValueRub / cfg.rates.cbr.EUR;
@@ -168,12 +171,14 @@ function calculate(input, cfg) {
   // все расходы по РФ (таможня + услуги)
   const rfExpenses = customsTotal + expensesSum;
   // итого «под ключ»
-  const grandTotal = carCostRub + rfExpenses + commission;
+  const grandTotal = carCostRub + bankFee + rfExpenses + commission;
 
   return {
     input: { ...input, powerKw, powerHp, volumeCc },
     foreignTotal,
     carCostRub,
+    bankFeePercent,
+    bankFee,
     customsValueRub,
     customsValueEur,
     duty: duty.duty,
@@ -192,7 +197,7 @@ function calculate(input, cfg) {
     // этапы оплаты
     stages: [
       { label: 'Депозит (р/с)', value: commission },
-      { label: 'Оплата за авто (инвойс)', value: carCostRub },
+      { label: 'Оплата за авто + комиссия банка (инвойс)', value: carCostRub + bankFee },
       { label: 'Пошлина / тамож. сбор / утиль (квитанция)', value: duty.duty + duty.customsFee + utilFee + duty.excise + duty.vat },
       { label: 'Остальные тамож. платежи и вывоз (физ. карта/счёт)', value: expensesSum },
     ],

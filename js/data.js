@@ -194,6 +194,8 @@ const CALC_DATA = {
       label: 'Япония 🇯🇵',
       currency: 'JPY',
       commission: 50000,
+      bankFeePercent: 0,   // % банка за перевод средств за границу
+
       items: [
         { key:'broker',   label:'Услуги брокера / СБКТС / ЭПТС / Лаборатория', value:50000 },
         { key:'tech',     label:'Справка на техническое средство', value:550 },
@@ -205,6 +207,8 @@ const CALC_DATA = {
       label: 'Корея 🇰🇷',
       currency: 'KRW',
       commission: 100000,
+      bankFeePercent: 2,   // % банка за перевод средств за границу
+
       items: [
         { key:'svh',      label:'СВХ ПРР', value:32000 },
         { key:'expertise',label:'Экспертиза ТС / осмотр на складе', value:4000 },
@@ -219,6 +223,8 @@ const CALC_DATA = {
       label: 'Китай 🇨🇳',
       currency: 'CNY',
       commission: 100000,
+      bankFeePercent: 2.5, // % банка за перевод средств за границу
+
       items: [
         { key:'ptd',      label:'Оформление ПТД', value:18000 },
         { key:'svh',      label:'СВХ (хранение и ПРР)', value:13000 },
