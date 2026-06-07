@@ -33,6 +33,18 @@
         <input type="checkbox" id="isElectric" class="switch">
       </label>
 
+      <!-- Санкционное авто (Япония) -->
+      <label class="switch-row hidden" id="fieldSanctioned">
+        <span>Санкционное авто</span>
+        <input type="checkbox" id="isSanctioned" class="switch">
+      </label>
+
+      <!-- Не из ДВФО — нужна врем. регистрация (Япония) -->
+      <label class="switch-row hidden" id="fieldDvfo">
+        <span>Не из ДВФО <small>(+15 000 ₽ врем. рег.)</small></span>
+        <input type="checkbox" id="isNotDvfo" class="switch">
+      </label>
+
       <!-- Параметры авто -->
       <section class="card">
         <div class="field">
@@ -70,21 +82,13 @@
         </div>
 
         <div class="field">
-          <label for="delivery">Доставка + фрахт <span id="curLabel2" class="cur">¥</span></label>
+          <label for="delivery">Доставка + фрахт <span id="curLabel2" class="cur">¥</span> <span id="deliveryHint" class="cur"></span></label>
           <input type="number" id="delivery" inputmode="numeric" placeholder="126900">
         </div>
 
         <div class="field">
           <label for="bankFee">Комиссия банка за перевод, %</label>
           <input type="number" id="bankFee" inputmode="decimal" step="0.1" placeholder="2.5">
-        </div>
-
-        <div class="field" id="fieldBank">
-          <label for="bank">Банк оплаты (курс)</label>
-          <select id="bank">
-            <option value="ATB">АТБ Банк</option>
-            <option value="VTB">ВТБ Банк</option>
-          </select>
         </div>
       </section>
 
@@ -126,7 +130,7 @@
         <div class="card-head">Рыночные курсы (платёж за авто)</div>
         <div class="grid2">
           <label>JPY за 100 (АТБ) <input type="number" step="0.01" data-rate="market.JPY100_ATB"></label>
-          <label>JPY за 100 (ВТБ) <input type="number" step="0.01" data-rate="market.JPY100_VTB"></label>
+          <label>JPY за 100 (санкц.) <input type="number" step="0.01" data-rate="market.JPY100_sanctioned"></label>
           <label>CNY продажа <input type="number" step="0.01" data-rate="market.CNY"></label>
           <label>USDT → RUB <input type="number" step="0.01" data-rate="market.USDT_RUB"></label>
           <label>KRW за 1 USDT <input type="number" step="1" data-rate="market.KRW_per_USDT"></label>

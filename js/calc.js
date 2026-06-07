@@ -17,10 +17,12 @@ function hpToKw(hp) { return hp * 0.7355; }
 function kwToHp(kw) { return kw / 0.7355; }
 
 /* --- Перевод цены авто в рубли по РЫНОЧНОМУ курсу (реальный платёж) --- */
-function priceToRub(country, amountForeign, rates, bank) {
+function priceToRub(country, amountForeign, rates, opts) {
+  opts = opts || {};
   switch (country) {
     case 'jp': {
-      const rate = bank === 'VTB' ? rates.market.JPY100_VTB : rates.market.JPY100_ATB;
+      // санкционные авто оплачиваются по более дорогому курсу йены
+      const rate = opts.sanctioned ? rates.market.JPY100_sanctioned : rates.market.JPY100_ATB;
       return amountForeign * rate / 100;          // ¥ → ₽ (курс за 100 JPY)
     }
     case 'cn':
@@ -30,6 +32,13 @@ function priceToRub(country, amountForeign, rates, bank) {
     default:
       return amountForeign;
   }
+}
+
+/* --- Доставка+фрахт по Корее по стоимости авто у дилера (вон) --- */
+function koreaDeliveryWon(carPriceWon, cfg) {
+  const tiers = (cfg && cfg.koreaDelivery) || CALC_DATA.koreaDelivery;
+  const row = tiers.find(t => carPriceWon <= t.maxWon);
+  return row ? row.won : 0;
 }
 
 /* --- Перевод цены авто в рубли по курсу ЦБ (таможенная стоимость) --- */
@@ -141,7 +150,7 @@ function calculate(input, cfg) {
   const foreignTotal = (input.carPrice || 0) + (input.deliveryForeign || 0);
 
   // реальный платёж за авто (рыночный курс)
-  const carCostRub = priceToRub(input.country, foreignTotal, cfg.rates, input.bank);
+  const carCostRub = priceToRub(input.country, foreignTotal, cfg.rates, { sanctioned: input.sanctioned });
   // комиссия банка за перевод средств за границу (% от платежа за авто+логистику)
   const bankFeePercent = Number(input.bankFeePercent) || 0;
   const bankFee = carCostRub * bankFeePercent / 100;
@@ -209,5 +218,6 @@ if (typeof window !== 'undefined') {
   window.calculate = calculate;
   window.hpToKw = hpToKw;
   window.kwToHp = kwToHp;
+  window.koreaDeliveryWon = koreaDeliveryWon;
 }
-if (typeof module !== 'undefined') module.exports = { calculate, hpToKw, kwToHp };
+if (typeof module !== 'undefined') module.exports = { calculate, hpToKw, kwToHp, koreaDeliveryWon };

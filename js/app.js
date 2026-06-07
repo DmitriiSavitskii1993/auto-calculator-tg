@@ -8,8 +8,16 @@ const inTelegram = !!(tg && tg.initData !== undefined && tg.platform && tg.platf
 const state = {
   country: 'jp',
   isElectric: false,
+  isSanctioned: false,  // санкционное авто (Япония)
+  isNotDvfo: false,     // не из ДВФО → нужна врем. регистрация (+15 000 ₽)
   powerUnit: 'hp',
 };
+
+/* текущий пресет расходов (с учётом санкций для Японии) */
+function currentPresetKey() {
+  return (state.country === 'jp' && state.isSanctioned) ? 'jp_sanctioned' : state.country;
+}
+function currentPreset() { return cfg.expensePresets[currentPresetKey()]; }
 
 const CUR = { jp: '¥', cn: '¥', kr: '₩' };
 
@@ -22,6 +30,7 @@ const fmtNum = (n) => Math.round(n).toLocaleString('ru-RU');
 
 let cfg = buildConfig();
 let lastCopyText = '';
+let currentExpenseItems = [];
 
 /* ============================ ИНИЦИАЛИЗАЦИЯ ============================ */
 function init() {
@@ -73,15 +82,34 @@ function renderCountry() {
   // валютные подписи
   $('#curLabel1').textContent = CUR[state.country];
   $('#curLabel2').textContent = CUR[state.country];
-  // банк и аукцион — только Япония
-  $('#fieldBank').classList.toggle('hidden', state.country !== 'jp');
-  $('#fieldAuction').classList.toggle('hidden', state.country !== 'jp');
+  // аукцион, санкции, ДВФО — только Япония
+  const isJp = state.country === 'jp';
+  $('#fieldAuction').classList.toggle('hidden', !isJp);
+  $('#fieldSanctioned').classList.toggle('hidden', !isJp);
+  $('#fieldDvfo').classList.toggle('hidden', !isJp);
   // объём — скрыт для электрокара
   $('#fieldVolume').classList.toggle('hidden', state.isElectric);
   // возраст
   renderAgeOptions();
+  // доставка/фрахт: Китай — фикс, Корея — авто-расчёт, Япония — из аукциона
+  updateDelivery();
   // расходы по РФ + комиссия из пресета
   renderExpenses();
+}
+
+/* доставка+фрахт: Китай фикс, Корея авто по цене, Япония из аукциона (вручную) */
+function updateDelivery() {
+  const d = $('#delivery');
+  const hint = $('#deliveryHint');
+  if (state.country === 'cn') {
+    d.value = currentPreset().fixedDeliveryForeign || 0;
+    d.readOnly = true; hint.textContent = '(фикс.)';
+  } else if (state.country === 'kr') {
+    d.value = koreaDeliveryWon(num('#carPrice'), cfg);
+    d.readOnly = true; hint.textContent = '(авто по цене авто)';
+  } else {
+    d.readOnly = false; hint.textContent = '';
+  }
 }
 
 function renderAgeOptions() {
@@ -90,15 +118,22 @@ function renderAgeOptions() {
 }
 
 function renderAuctions() {
+  // только названия аукционов, без цен
   $('#auction').innerHTML =
     '<option value="">— выбрать аукцион —</option>' +
-    CALC_DATA.auctions.map((a, i) => `<option value="${i}">${a.name} — ${fmtNum(a.fob)} ¥</option>`).join('');
+    CALC_DATA.auctions.map((a, i) => `<option value="${i}">${a.name}</option>`).join('');
 }
 
 function renderExpenses() {
-  const preset = cfg.expensePresets[state.country];
+  const preset = currentPreset();
+  // список расходов пресета + (для Японии не из ДВФО) справка о врем. регистрации
+  let items = preset.items.slice();
+  if (state.country === 'jp' && state.isNotDvfo) {
+    items.push({ key: 'tempreg', label: 'Справка о врем. регистрации (не из ДВФО)', value: cfg.tempRegFee });
+  }
+  currentExpenseItems = items;
   const box = $('#expenseList');
-  box.innerHTML = preset.items.map((it, i) => `
+  box.innerHTML = items.map((it, i) => `
     <div class="exp-item">
       <span class="exp-label">${it.label}</span>
       <input type="number" inputmode="numeric" data-exp="${i}" value="${it.value}">
@@ -121,6 +156,21 @@ function bindEvents() {
     renderCountry();
     hideResult();
   });
+
+  $('#isSanctioned').addEventListener('change', (e) => {
+    state.isSanctioned = e.target.checked;
+    renderExpenses();   // меняется пресет (брокер) и курс йены при расчёте
+    hideResult();
+  });
+
+  $('#isNotDvfo').addEventListener('change', (e) => {
+    state.isNotDvfo = e.target.checked;
+    renderExpenses();   // добавляет/убирает строку врем. регистрации
+    hideResult();
+  });
+
+  // Корея — доставка пересчитывается от цены авто
+  $('#carPrice').addEventListener('input', () => { if (state.country === 'kr') updateDelivery(); });
 
   $$('.unit').forEach(u => u.addEventListener('click', () => {
     state.powerUnit = u.dataset.unit;
@@ -165,15 +215,15 @@ function onCalculate() {
   haptic('medium');
   // свернуть клавиатуру, чтобы не мешала смотреть результат
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
-  const preset = cfg.expensePresets[state.country];
   const expenses = $$('#expenseList [data-exp]').map((el, i) => ({
-    label: preset.items[i].label, value: parseFloat(el.value) || 0,
+    label: (currentExpenseItems[i] || {}).label || '', value: parseFloat(el.value) || 0,
   }));
 
   const powerVal = num('#power');
   const input = {
     country: state.country,
     isElectric: state.isElectric,
+    sanctioned: state.country === 'jp' && state.isSanctioned,
     age: $('#age').value,
     volumeCc: state.isElectric ? 0 : num('#volume'),
     powerHp: state.powerUnit === 'hp' ? powerVal : null,
@@ -181,7 +231,6 @@ function onCalculate() {
     carPrice: num('#carPrice'),
     deliveryForeign: num('#delivery'),
     bankFeePercent: num('#bankFee'),
-    bank: $('#bank').value,
     commission: num('#commission'),
     expenses,
   };
