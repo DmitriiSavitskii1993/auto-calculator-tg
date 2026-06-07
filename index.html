@@ -40,23 +40,21 @@
         <button class="seg" data-country="cn">🇨🇳 Китай</button>
       </div>
 
-      <!-- Тип авто -->
-      <label class="switch-row">
-        <span>Электрокар</span>
-        <input type="checkbox" id="isElectric" class="switch">
-      </label>
-
-      <!-- Санкционное авто (Япония) -->
-      <label class="switch-row hidden" id="fieldSanctioned">
-        <span>Санкционное авто</span>
-        <input type="checkbox" id="isSanctioned" class="switch">
-      </label>
-
-      <!-- Не из ДВФО — нужна врем. регистрация (Япония) -->
-      <label class="switch-row hidden" id="fieldDvfo">
-        <span>Не из ДВФО <small>(+15 000 ₽ врем. рег.)</small></span>
-        <input type="checkbox" id="isNotDvfo" class="switch">
-      </label>
+      <!-- Опции авто (компактно) -->
+      <section class="card toggles">
+        <label class="switch-row">
+          <span>Электрокар</span>
+          <input type="checkbox" id="isElectric" class="switch">
+        </label>
+        <label class="switch-row hidden" id="fieldSanctioned">
+          <span>Санкционное авто</span>
+          <input type="checkbox" id="isSanctioned" class="switch">
+        </label>
+        <label class="switch-row hidden" id="fieldDvfo">
+          <span>Не из ДВФО <small>(+15 000 ₽)</small></span>
+          <input type="checkbox" id="isNotDvfo" class="switch">
+        </label>
+      </section>
 
       <!-- Параметры авто -->
       <section class="card">
