@@ -47,17 +47,29 @@ function priceToRubCbr(country, amountForeign, rates) {
   }
 }
 
-/* --- Поиск коэффициента утильсбора --- */
-function findUtilCoef(cfg, isElectric, volumeCc, powerKw, isOlderThan3) {
+/* --- Поиск коэффициента утильсбора ---
+ * Льготный коэффициент (0.17/0.26 → 3400/5200) применяется, если мощность ≤ порога
+ * (160 л.с. для ДВС, 80 л.с. для электрокара). Выше порога — по таблице двс/лп или эл/лп. */
+function findUtilCoef(cfg, isElectric, volumeCc, powerKw, powerHp, isOlderThan3) {
+  const pref = cfg.utilPreferentialCoef || { new: 0.17, old: 0.26 };
+  const thrHp = isElectric
+    ? (cfg.utilPreferentialHp ? cfg.utilPreferentialHp.ev : 80)
+    : (cfg.utilPreferentialHp ? cfg.utilPreferentialHp.ice : 160);
+
+  // льготный утиль — мощность в пределах порога (включительно)
+  if (powerHp <= thrHp) return isOlderThan3 ? pref.old : pref.new;
+
+  // выше порога — детальная таблица коэффициентов.
+  // ищем по НИЖНЕЙ границе мощности (устойчиво к округлению кВт и стыкам диапазонов)
   if (isElectric) {
-    const row = cfg.utilEv.find(r => powerKw >= r.kMin && powerKw <= r.kMax)
-             || cfg.utilEv[cfg.utilEv.length - 1];
+    const cand = cfg.utilEv.filter(r => powerKw >= r.kMin);
+    const row = cand.length ? cand[cand.length - 1] : cfg.utilEv[cfg.utilEv.length - 1];
     return isOlderThan3 ? row.cOld : row.cNew;
   }
-  const row = cfg.utilIce.find(r =>
-    volumeCc >= r.vMin && volumeCc <= r.vMax &&
-    powerKw  >= r.kMin && powerKw  <= r.kMax
-  ) || cfg.utilIce[cfg.utilIce.length - 1];
+  const band = cfg.utilIce.filter(r => volumeCc >= r.vMin && volumeCc <= r.vMax);
+  const cand = band.filter(r => powerKw >= r.kMin);
+  const row = (cand.length ? cand[cand.length - 1] : band[band.length - 1])
+           || cfg.utilIce[cfg.utilIce.length - 1];
   return isOlderThan3 ? row.cOld : row.cNew;
 }
 
@@ -163,7 +175,7 @@ function calculate(input, cfg) {
   });
 
   // --- утильсбор ---
-  const utilCoef = findUtilCoef(cfg, !!input.isElectric, volumeCc, powerKw, isOlderThan3);
+  const utilCoef = findUtilCoef(cfg, !!input.isElectric, volumeCc, powerKw, powerHp, isOlderThan3);
   const utilFee = cfg.utilBase * utilCoef;
 
   // --- расходы по РФ ---
