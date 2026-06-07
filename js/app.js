@@ -407,7 +407,8 @@ function buildCopyText(r) {
 
   let body = '';
   sections.forEach(sec => {
-    body += thin + '\n' + line(sec.head[0], sec.head[1]) + '\n';
+    // подытог обрамлён линиями сверху и снизу — выделяется отдельной полосой
+    body += thin + '\n' + line(sec.head[0], sec.head[1]) + '\n' + thin + '\n';
     sec.items.forEach(([l, v]) => { body += line(l, v) + '\n'; });
   });
 
