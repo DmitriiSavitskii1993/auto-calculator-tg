@@ -17,14 +17,10 @@ function hpToKw(hp) { return hp * 0.7355; }
 function kwToHp(kw) { return kw / 0.7355; }
 
 /* --- Перевод цены авто в рубли по РЫНОЧНОМУ курсу (реальный платёж) --- */
-function priceToRub(country, amountForeign, rates, opts) {
-  opts = opts || {};
+function priceToRub(country, amountForeign, rates) {
   switch (country) {
-    case 'jp': {
-      // санкционные авто оплачиваются по более дорогому курсу йены
-      const rate = opts.sanctioned ? rates.market.JPY100_sanctioned : rates.market.JPY100_ATB;
-      return amountForeign * rate / 100;          // ¥ → ₽ (курс за 100 JPY)
-    }
+    case 'jp':
+      return amountForeign * rates.market.JPY100_ATB / 100;  // ¥ → ₽ (курс за 100 JPY, АТБ)
     case 'cn':
       return amountForeign * rates.market.CNY;     // ¥ (CNY) → ₽
     case 'kr':
@@ -150,7 +146,7 @@ function calculate(input, cfg) {
   const foreignTotal = (input.carPrice || 0) + (input.deliveryForeign || 0);
 
   // реальный платёж за авто (рыночный курс)
-  const carCostRub = priceToRub(input.country, foreignTotal, cfg.rates, { sanctioned: input.sanctioned });
+  const carCostRub = priceToRub(input.country, foreignTotal, cfg.rates);
   // комиссия банка за перевод средств за границу (% от платежа за авто+логистику)
   const bankFeePercent = Number(input.bankFeePercent) || 0;
   const bankFee = carCostRub * bankFeePercent / 100;

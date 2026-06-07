@@ -92,6 +92,13 @@
         </div>
       </section>
 
+      <!-- Коммерческий курс (платёж за авто) -->
+      <section class="card">
+        <div class="card-head">Коммерческий курс (платёж за авто)</div>
+        <div id="rateList" class="grid2"></div>
+        <p class="hint">Пошлина и расходы РФ считаются по курсу ЦБ автоматически. Здесь — курс, по которому реально платите за авто.</p>
+      </section>
+
       <!-- Расходы по РФ -->
       <section class="card">
         <div class="card-head">Расходы по РФ, ₽</div>
@@ -130,7 +137,6 @@
         <div class="card-head">Рыночные курсы (платёж за авто)</div>
         <div class="grid2">
           <label>JPY за 100 (АТБ) <input type="number" step="0.01" data-rate="market.JPY100_ATB"></label>
-          <label>JPY за 100 (санкц.) <input type="number" step="0.01" data-rate="market.JPY100_sanctioned"></label>
           <label>CNY продажа <input type="number" step="0.01" data-rate="market.CNY"></label>
           <label>USDT → RUB <input type="number" step="0.01" data-rate="market.USDT_RUB"></label>
           <label>KRW за 1 USDT <input type="number" step="1" data-rate="market.KRW_per_USDT"></label>

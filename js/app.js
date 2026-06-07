@@ -21,6 +21,14 @@ function currentPreset() { return cfg.expensePresets[currentPresetKey()]; }
 
 const CUR = { jp: '¥', cn: '¥', kr: '₩' };
 
+/* коммерческие курсы, релевантные каждой стране (правятся на главном экране) */
+const RATE_FIELDS = {
+  jp: [{ key: 'JPY100_ATB', label: '¥ за 100 (АТБ)', step: 0.01 }],
+  cn: [{ key: 'CNY', label: '¥ (CNY) за 1', step: 0.01 }],
+  kr: [{ key: 'KRW_per_USDT', label: 'вон за 1 USDT', step: 1 },
+       { key: 'USDT_RUB', label: 'USDT → ₽', step: 0.01 }],
+};
+
 /* --- утилиты --- */
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -82,19 +90,28 @@ function renderCountry() {
   // валютные подписи
   $('#curLabel1').textContent = CUR[state.country];
   $('#curLabel2').textContent = CUR[state.country];
-  // аукцион, санкции, ДВФО — только Япония
+  // санкции, ДВФО — только Япония; аукцион — Япония кроме санкционных (там фрахт по формуле)
   const isJp = state.country === 'jp';
-  $('#fieldAuction').classList.toggle('hidden', !isJp);
+  $('#fieldAuction').classList.toggle('hidden', !(isJp && !state.isSanctioned));
   $('#fieldSanctioned').classList.toggle('hidden', !isJp);
   $('#fieldDvfo').classList.toggle('hidden', !isJp);
   // объём — скрыт для электрокара
   $('#fieldVolume').classList.toggle('hidden', state.isElectric);
   // возраст
   renderAgeOptions();
-  // доставка/фрахт: Китай — фикс, Корея — авто-расчёт, Япония — из аукциона
+  // коммерческий курс под страну
+  renderRates();
+  // доставка/фрахт: Китай — фикс, Корея — авто, Япония-санкции — формула, иначе из аукциона
   updateDelivery();
   // расходы по РФ + комиссия из пресета
   renderExpenses();
+}
+
+function renderRates() {
+  const fields = RATE_FIELDS[state.country] || [];
+  $('#rateList').innerHTML = fields.map(f =>
+    `<label>${f.label}<input type="number" step="${f.step}" data-mrate="${f.key}" value="${cfg.rates.market[f.key]}"></label>`
+  ).join('');
 }
 
 /* доставка+фрахт: Китай фикс, Корея авто по цене, Япония из аукциона (вручную) */
@@ -107,6 +124,10 @@ function updateDelivery() {
   } else if (state.country === 'kr') {
     d.value = koreaDeliveryWon(num('#carPrice'), cfg);
     d.readOnly = true; hint.textContent = '(авто по цене авто)';
+  } else if (state.country === 'jp' && state.isSanctioned) {
+    const f = cfg.jpSanctionedFreight || { base: 490000, pct: 0.05 };
+    d.value = Math.round(f.base + f.pct * num('#carPrice'));
+    d.readOnly = true; hint.textContent = '(490 000 + 5% от цены)';
   } else {
     d.readOnly = false; hint.textContent = '';
   }
@@ -159,7 +180,7 @@ function bindEvents() {
 
   $('#isSanctioned').addEventListener('change', (e) => {
     state.isSanctioned = e.target.checked;
-    renderExpenses();   // меняется пресет (брокер) и курс йены при расчёте
+    renderCountry();    // пресет (СВХ), фрахт по формуле, скрытие аукциона
     hideResult();
   });
 
@@ -169,8 +190,10 @@ function bindEvents() {
     hideResult();
   });
 
-  // Корея — доставка пересчитывается от цены авто
-  $('#carPrice').addEventListener('input', () => { if (state.country === 'kr') updateDelivery(); });
+  // пересчёт доставки/фрахта от цены авто (Корея и санкционная Япония)
+  $('#carPrice').addEventListener('input', () => {
+    if (state.country === 'kr' || (state.country === 'jp' && state.isSanctioned)) updateDelivery();
+  });
 
   $$('.unit').forEach(u => u.addEventListener('click', () => {
     state.powerUnit = u.dataset.unit;
@@ -197,7 +220,7 @@ function bindEvents() {
   $('#btnSaveSettings').addEventListener('click', saveSettings);
   $('#btnResetSettings').addEventListener('click', () => {
     if (confirm('Сбросить все ручные настройки к значениям по умолчанию?')) {
-      resetOverrides(); cfg = buildConfig(); fillSettings(); renderExpenses();
+      resetOverrides(); cfg = buildConfig(); fillSettings(); renderCountry();
       toast('Сброшено');
     }
   });
@@ -215,6 +238,15 @@ function onCalculate() {
   haptic('medium');
   // свернуть клавиатуру, чтобы не мешала смотреть результат
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+
+  // применить и сохранить коммерческие курсы, введённые на главном экране
+  const ratePatch = { rates: { market: {} } };
+  $$('#rateList [data-mrate]').forEach(el => {
+    const v = parseFloat((el.value || '').toString().replace(',', '.'));
+    if (!isNaN(v)) { cfg.rates.market[el.dataset.mrate] = v; ratePatch.rates.market[el.dataset.mrate] = v; }
+  });
+  if (Object.keys(ratePatch.rates.market).length) patchOverrides(ratePatch);
+
   const expenses = $$('#expenseList [data-exp]').map((el, i) => ({
     label: (currentExpenseItems[i] || {}).label || '', value: parseFloat(el.value) || 0,
   }));
@@ -363,6 +395,7 @@ function saveSettings() {
   });
   patchOverrides(patch);
   cfg = buildConfig();
+  renderCountry();   // отразить новые курсы/ставки на главном экране
   toast('Настройки сохранены');
   closeSettings();
 }
