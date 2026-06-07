@@ -214,10 +214,10 @@ const CALC_DATA = {
       bankFeePercent: 1.5, // % банка за перевод средств за границу (Япония)
 
       items: [
-        { key:'broker',   label:'Услуги брокера / СБКТС / ЭПТС / Лаборатория', value:50000 },
-        { key:'tech',     label:'Справка на техническое средство', value:550 },
-        { key:'svh',      label:'СВХ (хранение и ПРР)', value:3000 },
-        { key:'export',   label:'Вывоз в ТК', value:5000 },
+        { key:'broker',   label:'Услуги брокера / СБКТС / ЭПТС / Лаборатория', short:'Брокер/СБКТС/ЭПТС', value:50000 },
+        { key:'tech',     label:'Справка на техническое средство', short:'Справка ТС', value:550 },
+        { key:'svh',      label:'СВХ (хранение и ПРР)', short:'СВХ', value:3000 },
+        { key:'export',   label:'Вывоз в ТК', short:'Вывоз в ТК', value:5000 },
       ],
     },
     // Япония — САНКЦИОННОЕ авто: фрахт по формуле (490000+5%), СВХ 50000. Курс/банк как обычно.
@@ -227,10 +227,10 @@ const CALC_DATA = {
       commission: 50000,
       bankFeePercent: 1.5,
       items: [
-        { key:'broker',   label:'Услуги брокера / СБКТС / ЭПТС / Лаборатория', value:50000 },
-        { key:'tech',     label:'Справка на техническое средство', value:550 },
-        { key:'svh',      label:'СВХ (хранение и ПРР)', value:50000 },
-        { key:'export',   label:'Вывоз в ТК', value:5000 },
+        { key:'broker',   label:'Услуги брокера / СБКТС / ЭПТС / Лаборатория', short:'Брокер/СБКТС/ЭПТС', value:50000 },
+        { key:'tech',     label:'Справка на техническое средство', short:'Справка ТС', value:550 },
+        { key:'svh',      label:'СВХ (хранение и ПРР)', short:'СВХ', value:50000 },
+        { key:'export',   label:'Вывоз в ТК', short:'Вывоз в ТК', value:5000 },
       ],
     },
     kr: {
@@ -240,13 +240,13 @@ const CALC_DATA = {
       bankFeePercent: 0,   // Корея — без комиссии банка за перевод
 
       items: [
-        { key:'svh',      label:'СВХ ПРР', value:32000 },
-        { key:'expertise',label:'Экспертиза ТС / осмотр на складе', value:4000 },
-        { key:'reg',      label:'Справка о врем. регистрации', value:5000 },
-        { key:'fast',     label:'Быстрый выпуск (минимум платного СВХ)', value:5000 },
-        { key:'lab',      label:'ИЛ / СБКТС / ЭПТС', value:25000 },
-        { key:'broker',   label:'Услуги брокера / вывоз с СВХ / стоянка', value:22000 },
-        { key:'export',   label:'Вывоз в ТК', value:5000 },
+        { key:'svh',      label:'СВХ ПРР', short:'СВХ ПРР', value:32000 },
+        { key:'expertise',label:'Экспертиза ТС / осмотр на складе', short:'Экспертиза/осмотр', value:4000 },
+        { key:'reg',      label:'Справка о врем. регистрации', short:'Справка врем.рег.', value:5000 },
+        { key:'fast',     label:'Быстрый выпуск (минимум платного СВХ)', short:'Быстрый выпуск', value:5000 },
+        { key:'lab',      label:'ИЛ / СБКТС / ЭПТС', short:'ИЛ/СБКТС/ЭПТС', value:25000 },
+        { key:'broker',   label:'Услуги брокера / вывоз с СВХ / стоянка', short:'Брокер/вывоз', value:22000 },
+        { key:'export',   label:'Вывоз в ТК', short:'Вывоз в ТК', value:5000 },
       ],
     },
     cn: {
@@ -257,12 +257,12 @@ const CALC_DATA = {
       fixedDeliveryForeign: 15000, // доставка+транзит всегда 15 000 ¥ (CNY)
 
       items: [
-        { key:'ptd',      label:'Оформление ПТД', value:18000 },
-        { key:'svh',      label:'СВХ (хранение и ПРР)', value:13000 },
-        { key:'lab',      label:'СБКТС и ЭПТС (Лаборатория)', value:25000 },
-        { key:'transit',  label:'Оформление транзитной декларации', value:17000 },
-        { key:'expertise',label:'Экспертиза ТС', value:2000 },
-        { key:'export',   label:'Вывоз в ТК / доставка к дому', value:10000 },
+        { key:'ptd',      label:'Оформление ПТД', short:'Оформление ПТД', value:18000 },
+        { key:'svh',      label:'СВХ (хранение и ПРР)', short:'СВХ', value:13000 },
+        { key:'lab',      label:'СБКТС и ЭПТС (Лаборатория)', short:'СБКТС/ЭПТС', value:25000 },
+        { key:'transit',  label:'Оформление транзитной декларации', short:'Транзит. декл.', value:17000 },
+        { key:'expertise',label:'Экспертиза ТС', short:'Экспертиза ТС', value:2000 },
+        { key:'export',   label:'Вывоз в ТК / доставка к дому', short:'Вывоз/доставка', value:10000 },
       ],
     },
   },

@@ -213,10 +213,10 @@ function calculate(input, cfg) {
     grandTotal,
     // этапы оплаты
     stages: [
-      { label: 'Депозит (р/с)', value: commission },
-      { label: 'Оплата за авто + комиссия банка (инвойс)', value: carCostRub + bankFee },
-      { label: 'Пошлина / тамож. сбор / утиль (квитанция)', value: duty.duty + duty.customsFee + utilFee + duty.excise + duty.vat },
-      { label: 'Остальные тамож. платежи и вывоз (физ. карта/счёт)', value: expensesSum },
+      { label: 'Депозит (р/с)', short: 'Депозит', value: commission },
+      { label: 'Оплата за авто + комиссия банка (инвойс)', short: 'Авто (инвойс)', value: carCostRub + bankFee },
+      { label: 'Пошлина / тамож. сбор / утиль (квитанция)', short: 'Пошлина/утиль', value: duty.duty + duty.customsFee + utilFee + duty.excise + duty.vat },
+      { label: 'Остальные тамож. платежи и вывоз (физ. карта/счёт)', short: 'Остальное+вывоз', value: expensesSum },
     ],
   };
 }

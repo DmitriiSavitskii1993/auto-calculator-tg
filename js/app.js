@@ -154,7 +154,7 @@ function renderExpenses() {
   // список расходов пресета + (для Японии не из ДВФО) справка о врем. регистрации
   let items = preset.items.slice();
   if (state.country === 'jp' && state.isNotDvfo) {
-    items.push({ key: 'tempreg', label: 'Справка о врем. регистрации (не из ДВФО)', value: cfg.tempRegFee });
+    items.push({ key: 'tempreg', label: 'Справка о врем. регистрации (не из ДВФО)', short: 'Справка врем.рег.', value: cfg.tempRegFee });
   }
   currentExpenseItems = items;
   const box = $('#expenseList');
@@ -268,7 +268,9 @@ function onCalculate() {
   if (Object.keys(ratePatch.rates.market).length) patchOverrides(ratePatch);
 
   const expenses = $$('#expenseList [data-exp]').map((el, i) => ({
-    label: (currentExpenseItems[i] || {}).label || '', value: parseFloat(el.value) || 0,
+    label: (currentExpenseItems[i] || {}).label || '',
+    short: (currentExpenseItems[i] || {}).short || (currentExpenseItems[i] || {}).label || '',
+    value: parseFloat(el.value) || 0,
   }));
 
   const powerVal = num('#power');
@@ -367,8 +369,8 @@ function renderResult(r) {
 /* --- сборка текста расчёта (клиентская короткая версия, код-блок) --- */
 function buildCopyText(r) {
   const flags = { jp: '🇯🇵', kr: '🇰🇷', cn: '🇨🇳' };
-  const ageOpts = r.input.isElectric ? CALC_DATA.ageOptionsEv : CALC_DATA.ageOptions;
-  const ageLabel = (ageOpts.find(o => o.id === r.input.age) || {}).label || '';
+  const ageShort = { '<3': '<3 лет', '3-5': '3-5 лет', '5-7': '5-7 лет', '>7': '>7 лет', '>3': '>3 лет' };
+  const ageLabel = ageShort[r.input.age] || '';
   const params = r.input.isElectric
     ? `${ageLabel} · ${Math.round(r.input.powerKw)} кВт`
     : `${ageLabel} · ${fmtNum(r.input.volumeCc)} см³ · ${Math.round(r.input.powerHp)} л.с.`;
@@ -380,24 +382,27 @@ function buildCopyText(r) {
 
   const rows = [];
   rows.push(['РАСХОДЫ ПО ' + COUNTRY_UP[c], money(r.carCostRub + r.bankFee)]);
-  rows.push(['  Авто + доставка', fmtNum(r.foreignTotal) + ' ' + cur]);
+  rows.push(['  Авто+доставка', fmtNum(r.foreignTotal) + ' ' + cur]);
   rows.push(['  Курс', rateCopy(c, mk)]);
   rows.push(['  В рублях', money(r.carCostRub)]);
-  if (r.bankFee > 0) rows.push([`  Комиссия банка ${r.bankFeePercent}%`, money(r.bankFee)]);
-  rows.push(['ТАМОЖЕННЫЕ ПЛАТЕЖИ', money(r.customsTotal)]);
-  rows.push(['  Пошлина и сбор', money(r.duty + r.customsFee)]);
+  if (r.bankFee > 0) rows.push([`  Банк ${r.bankFeePercent}%`, money(r.bankFee)]);
+  rows.push(['ТАМОЖНЯ', money(r.customsTotal)]);
+  rows.push(['  Пошлина+сбор', money(r.duty + r.customsFee)]);
   if (r.input.isElectric) { rows.push(['  Акциз', money(r.excise)]); rows.push(['  НДС 20%', money(r.vat)]); }
-  rows.push([`  Утильсбор (коэф ${r.utilCoef})`, money(r.utilFee)]);
-  rows.push(['УСЛУГИ И РАСХОДЫ ПО РФ', money(r.expensesSum + r.commission)]);
-  r.expenses.forEach(e => rows.push(['  ' + e.label, money(e.value)]));
-  rows.push(['  Комиссия компании', money(r.commission)]);
+  rows.push([`  Утиль (${r.utilCoef})`, money(r.utilFee)]);
+  rows.push(['РАСХОДЫ ПО РФ', money(r.expensesSum + r.commission)]);
+  r.expenses.forEach(e => rows.push(['  ' + (e.short || e.label), money(e.value)]));
+  rows.push(['  Комиссия', money(r.commission)]);
   const totalRow = ['ИТОГО ПОД КЛЮЧ', money(r.grandTotal)];
 
-  // ширина столбца (ограничим, чтобы длинные подписи не растягивали таблицу)
-  const w = Math.min(40, Math.max(...rows.concat([totalRow]).map(([l, v]) => l.length + v.length)) + 2);
-  const line = (l, v) => l + ' '.repeat(Math.max(1, w - l.length - v.length)) + v;
-  const div = '━'.repeat(w);
-  const stageLines = r.stages.filter(s => s.value > 0).map((s, i) => `${i + 1}) ${s.label}: ${money(s.value)}`);
+  // фикс. ширина 30 символов — строки гарантированно влезают в чат без переносов
+  const W = 30;
+  const line = (l, v) => (l.length + v.length + 1 > W)
+    ? l + ' ' + v
+    : l + ' '.repeat(W - l.length - v.length) + v;
+  const div = '━'.repeat(W);
+  const stageLines = r.stages.filter(s => s.value > 0)
+    .map((s, i) => `${i + 1}) ${s.short || s.label} — ${money(s.value)}`);
 
   return '```\n'
     + `🚗 WT — Расчёт авто\n`
