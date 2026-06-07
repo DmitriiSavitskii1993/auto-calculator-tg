@@ -21,13 +21,13 @@ function currentPreset() { return cfg.expensePresets[currentPresetKey()]; }
 
 const CUR = { jp: '¥', cn: '¥', kr: '₩' };
 
-/* коммерческие курсы, релевантные каждой стране (правятся на главном экране) */
-const RATE_FIELDS = {
-  jp: [{ key: 'JPY100_ATB', label: '¥ за 100 (АТБ)', step: 0.01 }],
-  cn: [{ key: 'CNY', label: '¥ (CNY) за 1', step: 0.01 }],
-  kr: [{ key: 'KRW_per_USDT', label: 'вон за 1 USDT', step: 1 },
-       { key: 'USDT_RUB', label: 'USDT → ₽', step: 0.01 }],
-};
+/* все коммерческие курсы (вводятся 1 раз в день, запоминаются) */
+const ALL_RATE_FIELDS = [
+  { key: 'JPY100_ATB', label: '¥ за 100 (АТБ)', step: 0.01 },
+  { key: 'CNY', label: '¥ (CNY) за 1', step: 0.01 },
+  { key: 'KRW_per_USDT', label: 'вон за 1 USDT', step: 1 },
+  { key: 'USDT_RUB', label: 'USDT → ₽', step: 0.01 },
+];
 
 /* --- утилиты --- */
 const $ = (sel) => document.querySelector(sel);
@@ -45,6 +45,7 @@ function init() {
   if (tg) { tg.ready(); tg.expand(); }
   renderCountry();
   renderAuctions();
+  renderRatesPanel();
   bindEvents();
   loadCbr();
   setupMainButton();
@@ -99,19 +100,22 @@ function renderCountry() {
   $('#fieldVolume').classList.toggle('hidden', state.isElectric);
   // возраст
   renderAgeOptions();
-  // коммерческий курс под страну
-  renderRates();
   // доставка/фрахт: Китай — фикс, Корея — авто, Япония-санкции — формула, иначе из аукциона
   updateDelivery();
   // расходы по РФ + комиссия из пресета
   renderExpenses();
 }
 
-function renderRates() {
-  const fields = RATE_FIELDS[state.country] || [];
-  $('#rateList').innerHTML = fields.map(f =>
-    `<label>${f.label}<input type="number" step="${f.step}" data-mrate="${f.key}" value="${cfg.rates.market[f.key]}"></label>`
+/* панель «Курсы на сегодня» — все коммерческие курсы, сохраняются сразу при вводе */
+function renderRatesPanel() {
+  $('#rateList').innerHTML = ALL_RATE_FIELDS.map(f =>
+    `<label>${f.label}<input type="number" inputmode="decimal" step="${f.step}" data-mrate="${f.key}" value="${cfg.rates.market[f.key]}"></label>`
   ).join('');
+  updateRateSummary();
+}
+function updateRateSummary() {
+  const m = cfg.rates.market;
+  $('#rateSummary').textContent = `¥100 ${m.JPY100_ATB} · CNY ${m.CNY} · USDT ${m.USDT_RUB}`;
 }
 
 /* доставка+фрахт: Китай фикс, Корея авто по цене, Япония из аукциона (вручную) */
@@ -195,6 +199,22 @@ function bindEvents() {
     if (state.country === 'kr' || (state.country === 'jp' && state.isSanctioned)) updateDelivery();
   });
 
+  // панель «Курсы на сегодня»: сворачивание + сохранение сразу при вводе
+  $('#rateToggle').addEventListener('click', () => {
+    const open = $('#rateBody').classList.toggle('hidden');
+    $('#rateChevron').textContent = open ? '▸' : '▾';
+  });
+  $('#rateList').addEventListener('change', (e) => {
+    if (!e.target.dataset || e.target.dataset.mrate == null) return;
+    const v = parseFloat((e.target.value || '').toString().replace(',', '.'));
+    if (isNaN(v)) return;
+    cfg.rates.market[e.target.dataset.mrate] = v;
+    patchOverrides({ rates: { market: { [e.target.dataset.mrate]: v } } });
+    updateRateSummary();
+    if (state.country === 'kr') updateDelivery();
+    haptic('light');
+  });
+
   $$('.unit').forEach(u => u.addEventListener('click', () => {
     state.powerUnit = u.dataset.unit;
     $$('.unit').forEach(x => x.classList.toggle('active', x === u));
@@ -220,7 +240,7 @@ function bindEvents() {
   $('#btnSaveSettings').addEventListener('click', saveSettings);
   $('#btnResetSettings').addEventListener('click', () => {
     if (confirm('Сбросить все ручные настройки к значениям по умолчанию?')) {
-      resetOverrides(); cfg = buildConfig(); fillSettings(); renderCountry();
+      resetOverrides(); cfg = buildConfig(); fillSettings(); renderCountry(); renderRatesPanel();
       toast('Сброшено');
     }
   });
@@ -395,7 +415,8 @@ function saveSettings() {
   });
   patchOverrides(patch);
   cfg = buildConfig();
-  renderCountry();   // отразить новые курсы/ставки на главном экране
+  renderCountry();      // отразить новые ставки на главном экране
+  renderRatesPanel();   // и панель курсов
   toast('Настройки сохранены');
   closeSettings();
 }

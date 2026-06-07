@@ -20,6 +20,19 @@
     <!-- Основной экран -->
     <main id="screenCalc" class="screen">
 
+      <!-- Курсы на сегодня (вводятся 1 раз, запоминаются для всех расчётов) -->
+      <section class="card rate-card" id="rateCard">
+        <div class="card-head rate-head" id="rateToggle">
+          <span>💱 Курсы на сегодня</span>
+          <span id="rateSummary" class="rate-summary"></span>
+          <span id="rateChevron" class="chevron">▸</span>
+        </div>
+        <div id="rateBody" class="hidden">
+          <div id="rateList" class="grid2"></div>
+          <p class="hint">Вводятся один раз — запоминаются для всех расчётов. Пошлина и расходы по РФ считаются по курсу ЦБ автоматически.</p>
+        </div>
+      </section>
+
       <!-- Выбор страны -->
       <div class="segmented" id="countryTabs">
         <button class="seg active" data-country="jp">🇯🇵 Япония</button>
@@ -92,12 +105,6 @@
         </div>
       </section>
 
-      <!-- Коммерческий курс (платёж за авто) -->
-      <section class="card">
-        <div class="card-head">Коммерческий курс (платёж за авто)</div>
-        <div id="rateList" class="grid2"></div>
-        <p class="hint">Пошлина и расходы РФ считаются по курсу ЦБ автоматически. Здесь — курс, по которому реально платите за авто.</p>
-      </section>
 
       <!-- Расходы по РФ -->
       <section class="card">
