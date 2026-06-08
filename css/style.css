@@ -145,10 +145,12 @@ input:focus, select:focus { border-color: var(--accent); }
 .chevron { color: var(--hint); font-size: 13px; }
 #rateBody { margin-top: 12px; }
 
-/* Кнопка копирования расчёта */
-.copy-btn { width: 100%; margin-top: 14px; background: var(--good); color: #fff; border: none;
-  padding: 13px; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer; }
+/* Кнопки действий с расчётом */
+.result-actions { display: flex; gap: 8px; margin-top: 14px; }
+.copy-btn { flex: 1; background: var(--good); color: #fff; border: none;
+  padding: 13px 10px; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer; }
 .copy-btn:active { opacity: .85; }
+.send-btn { background: var(--btn); }
 
 /* Кнопка расчёта (если MainButton недоступна — например в браузере) */
 .calc-btn { width: 100%; background: var(--btn); color: var(--btn-text); border: none;

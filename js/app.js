@@ -221,12 +221,19 @@ function bindEvents() {
     $$('.unit').forEach(x => x.classList.toggle('active', x === u));
   }));
 
-  // копирование расчёта (кнопка появляется внутри результата)
+  // действия с расчётом (кнопки появляются внутри результата)
   $('#result').addEventListener('click', async (e) => {
-    if (e.target && e.target.id === 'btnCopy') {
+    if (e.target.closest && e.target.closest('#btnCopy')) {
       const ok = await copyToClipboard(lastCopyText);
       haptic(ok ? 'medium' : 'light');
       toast(ok ? '✅ Расчёт скопирован — вставьте в чат' : 'Не удалось скопировать');
+    }
+    if (e.target.closest && e.target.closest('#btnShare')) {
+      haptic('medium');
+      const url = 'https://t.me/share/url?url=' + encodeURIComponent(lastCopyText);
+      if (tg && tg.openTelegramLink) tg.openTelegramLink(url);          // откроет выбор чата
+      else if (navigator.share) navigator.share({ text: lastCopyText }).catch(() => {});
+      else window.open(url, '_blank');
     }
   });
 
@@ -392,7 +399,10 @@ function renderResult(r) {
     <div class="section-title">Этапы оплаты</div>
     ${stageRows}
 
-    <button class="copy-btn" id="btnCopy">📋 Скопировать расчёт для клиента</button>
+    <div class="result-actions">
+      <button class="copy-btn" id="btnCopy">📋 Скопировать</button>
+      <button class="copy-btn send-btn" id="btnShare">📤 Отправить в чат</button>
+    </div>
   `;
   lastCopyText = buildCopyText(r);
   $('#result').classList.remove('hidden');
