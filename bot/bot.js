@@ -31,7 +31,13 @@ const welcome =
 
 bot.command('start', async (ctx) => {
   const kb = new InlineKeyboard().webApp('🧮 Открыть калькулятор', WEBAPP_URL);
-  await ctx.reply(welcome, { parse_mode: 'Markdown', reply_markup: kb });
+  const msg = await ctx.reply(welcome, { parse_mode: 'Markdown', reply_markup: kb });
+  // закрепляем сообщение с кнопкой, чтобы калькулятор всегда был в закрепе сверху чата
+  try {
+    await ctx.api.pinChatMessage(ctx.chat.id, msg.message_id, { disable_notification: true });
+  } catch (e) {
+    console.warn('Не удалось закрепить сообщение:', e.message);
+  }
 });
 
 bot.command('calc', async (ctx) => {
