@@ -57,4 +57,10 @@ bot.on('message:web_app_data', async (ctx) => {
 
 bot.catch((err) => console.error('Ошибка бота:', err));
 
+// Мини HTTP-сервер для проверки «живости» (нужен хостингам типа Render/Koyeb/Railway)
+const http = require('http');
+const PORT = process.env.PORT || 3000;
+http.createServer((req, res) => { res.writeHead(200); res.end('Bot is running'); })
+  .listen(PORT, () => console.log('Health-сервер на порту ' + PORT));
+
 bot.start({ onStart: (info) => console.log(`🤖 Бот @${info.username} запущен`) });

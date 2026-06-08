@@ -1,0 +1,16 @@
+{
+  "name": "wt-auto-calculator-bot",
+  "version": "1.0.0",
+  "description": "Telegram-бот калькулятора растаможки авто (запуск на хостинге)",
+  "private": true,
+  "scripts": {
+    "start": "node bot/bot.js"
+  },
+  "dependencies": {
+    "grammy": "^1.30.0",
+    "dotenv": "^16.4.5"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
