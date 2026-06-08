@@ -49,6 +49,7 @@ function init() {
   bindEvents();
   loadCbr();
   setupMainButton();
+  setupKeyboardDone();
 }
 
 /* --- кнопка «Рассчитать» --- */
@@ -109,7 +110,7 @@ function renderCountry() {
 /* панель «Курсы на сегодня» — все коммерческие курсы, сохраняются сразу при вводе */
 function renderRatesPanel() {
   $('#rateList').innerHTML = ALL_RATE_FIELDS.map(f =>
-    `<label>${f.label}<input type="number" inputmode="decimal" step="${f.step}" data-mrate="${f.key}" value="${cfg.rates.market[f.key]}"></label>`
+    `<label>${f.label}<input type="text" inputmode="decimal" data-mrate="${f.key}" value="${String(cfg.rates.market[f.key]).replace('.', ',')}"></label>`
   ).join('');
   updateRateSummary();
 }
@@ -164,7 +165,7 @@ function renderExpenses() {
       <input type="number" inputmode="numeric" data-exp="${i}" value="${it.value}">
     </div>`).join('');
   $('#commission').value = preset.commission;
-  $('#bankFee').value = preset.bankFeePercent != null ? preset.bankFeePercent : 0;
+  $('#bankFee').value = String(preset.bankFeePercent != null ? preset.bankFeePercent : 0).replace('.', ',');
 }
 
 /* ============================ СОБЫТИЯ ============================ */
@@ -247,6 +248,38 @@ function bindEvents() {
   $('#btnRefreshCbr').addEventListener('click', async () => {
     try { const f = await fetchCbr(); cfg = buildConfig(); fillSettings(); showCbrStatus(f); toast('Курсы ЦБ обновлены'); }
     catch (e) { toast('Не удалось обновить курсы'); }
+  });
+}
+
+/* плавающая кнопка «свернуть клавиатуру» — появляется при фокусе на поле ввода */
+function setupKeyboardDone() {
+  const btn = $('#kbDone');
+  if (!btn) return;
+  const vv = window.visualViewport;
+  const reposition = () => {
+    if (!vv) return;
+    const gap = window.innerHeight - vv.height - vv.offsetTop; // высота клавиатуры
+    btn.style.bottom = Math.max(12, gap + 10) + 'px';
+  };
+  document.addEventListener('focusin', (e) => {
+    if (e.target && e.target.matches && e.target.matches('input')) {
+      btn.classList.remove('hidden');
+      reposition();
+    }
+  });
+  document.addEventListener('focusout', () => {
+    setTimeout(() => {
+      const a = document.activeElement;
+      if (!a || !a.matches || !a.matches('input')) btn.classList.add('hidden');
+    }, 150);
+  });
+  if (vv) { vv.addEventListener('resize', reposition); vv.addEventListener('scroll', reposition); }
+  // не забирать фокус у поля при нажатии
+  btn.addEventListener('mousedown', (e) => e.preventDefault());
+  btn.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
+  btn.addEventListener('click', () => {
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    btn.classList.add('hidden');
   });
 }
 
@@ -453,20 +486,21 @@ function closeSettings() { $('#screenSettings').classList.add('hidden'); $('#scr
 function fillSettings() {
   $$('[data-rate]').forEach(el => {
     const [grp, key] = el.dataset.rate.split('.');
-    el.value = cfg.rates[grp][key];
+    el.value = String(cfg.rates[grp][key]).replace('.', ',');
   });
-  $$('[data-ev]').forEach(el => { el.value = cfg[el.dataset.ev]; });
+  $$('[data-ev]').forEach(el => { el.value = String(cfg[el.dataset.ev]).replace('.', ','); });
 }
 
 function saveSettings() {
+  const parseComma = (s) => parseFloat((s || '').toString().replace(',', '.'));
   const patch = { rates: { cbr: {}, market: {} } };
   $$('[data-rate]').forEach(el => {
     const [grp, key] = el.dataset.rate.split('.');
-    const v = parseFloat(el.value);
+    const v = parseComma(el.value);
     if (!isNaN(v)) patch.rates[grp][key] = v;
   });
   $$('[data-ev]').forEach(el => {
-    const v = parseFloat(el.value);
+    const v = parseComma(el.value);
     if (!isNaN(v)) patch[el.dataset.ev] = v;
   });
   patchOverrides(patch);

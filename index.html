@@ -99,7 +99,7 @@
 
         <div class="field">
           <label for="bankFee">Комиссия банка за перевод, %</label>
-          <input type="number" id="bankFee" inputmode="decimal" step="0.1" placeholder="2.5">
+          <input type="text" id="bankFee" inputmode="decimal" placeholder="2,5">
         </div>
       </section>
 
@@ -130,30 +130,30 @@
           <button id="btnRefreshCbr" class="mini-btn">⟳ Обновить</button>
         </div>
         <div class="grid2">
-          <label>USD <input type="number" step="0.0001" data-rate="cbr.USD"></label>
-          <label>EUR <input type="number" step="0.0001" data-rate="cbr.EUR"></label>
-          <label>JPY (за 1 ¥) <input type="number" step="0.0001" data-rate="cbr.JPY"></label>
-          <label>KRW (за 1 ₩) <input type="number" step="0.00001" data-rate="cbr.KRW"></label>
-          <label>CNY <input type="number" step="0.0001" data-rate="cbr.CNY"></label>
+          <label>USD <input type="text" inputmode="decimal" data-rate="cbr.USD"></label>
+          <label>EUR <input type="text" inputmode="decimal" data-rate="cbr.EUR"></label>
+          <label>JPY (за 1 ¥) <input type="text" inputmode="decimal" data-rate="cbr.JPY"></label>
+          <label>KRW (за 1 ₩) <input type="text" inputmode="decimal" data-rate="cbr.KRW"></label>
+          <label>CNY <input type="text" inputmode="decimal" data-rate="cbr.CNY"></label>
         </div>
       </section>
 
       <section class="card">
         <div class="card-head">Рыночные курсы (платёж за авто)</div>
         <div class="grid2">
-          <label>JPY за 100 (АТБ) <input type="number" step="0.01" data-rate="market.JPY100_ATB"></label>
-          <label>CNY продажа <input type="number" step="0.01" data-rate="market.CNY"></label>
-          <label>USDT → RUB <input type="number" step="0.01" data-rate="market.USDT_RUB"></label>
-          <label>KRW за 1 USDT <input type="number" step="1" data-rate="market.KRW_per_USDT"></label>
-          <label>USD продажа <input type="number" step="0.01" data-rate="market.USD"></label>
+          <label>JPY за 100 (АТБ) <input type="text" inputmode="decimal" data-rate="market.JPY100_ATB"></label>
+          <label>CNY продажа <input type="text" inputmode="decimal" data-rate="market.CNY"></label>
+          <label>USDT → RUB <input type="text" inputmode="decimal" data-rate="market.USDT_RUB"></label>
+          <label>KRW за 1 USDT <input type="text" inputmode="decimal" data-rate="market.KRW_per_USDT"></label>
+          <label>USD продажа <input type="text" inputmode="decimal" data-rate="market.USD"></label>
         </div>
       </section>
 
       <section class="card">
         <div class="card-head">Параметры электрокаров</div>
         <div class="grid2">
-          <label>Пошлина, % <input type="number" step="0.01" data-ev="evDutyPercent"></label>
-          <label>НДС, % <input type="number" step="0.01" data-ev="evVatPercent"></label>
+          <label>Пошлина, % <input type="text" inputmode="decimal" data-ev="evDutyPercent"></label>
+          <label>НДС, % <input type="text" inputmode="decimal" data-ev="evVatPercent"></label>
         </div>
         <p class="hint">⚠️ Расчёт электрокаров (коммерческий ввоз) приблизительный — сверьте с вашей таблицей и при необходимости поправьте ставки.</p>
       </section>
@@ -166,6 +166,9 @@
     </section>
 
   </div>
+
+  <!-- Плавающая кнопка «свернуть клавиатуру» (появляется при вводе) -->
+  <button id="kbDone" class="kb-done hidden" type="button">▾ Свернуть</button>
 
   <script src="js/data.js"></script>
   <script src="js/calc.js"></script>
