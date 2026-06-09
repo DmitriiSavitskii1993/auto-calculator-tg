@@ -38,6 +38,7 @@ const fmtNum = (n) => Math.round(n).toLocaleString('ru-RU');
 
 let cfg = buildConfig();
 let lastCopyText = '';
+let lastShareText = '';
 let currentExpenseItems = [];
 
 /* ============================ ИНИЦИАЛИЗАЦИЯ ============================ */
@@ -230,9 +231,9 @@ function bindEvents() {
     }
     if (e.target.closest && e.target.closest('#btnShare')) {
       haptic('medium');
-      const url = 'https://t.me/share/url?url=' + encodeURIComponent(lastCopyText);
+      const url = 'https://t.me/share/url?url=' + encodeURIComponent(lastShareText);
       if (tg && tg.openTelegramLink) tg.openTelegramLink(url);          // откроет выбор чата
-      else if (navigator.share) navigator.share({ text: lastCopyText }).catch(() => {});
+      else if (navigator.share) navigator.share({ text: lastShareText }).catch(() => {});
       else window.open(url, '_blank');
     }
   });
@@ -405,6 +406,7 @@ function renderResult(r) {
     </div>
   `;
   lastCopyText = buildCopyText(r);
+  lastShareText = buildShareText(r);
   $('#result').classList.remove('hidden');
   $('#result').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -468,6 +470,36 @@ function buildCopyText(r) {
     + 'Этапы оплаты:\n'
     + stageLines.join('\n') + '\n'
     + '```';
+}
+
+/* --- текст для ОТПРАВКИ в чат (без код-блока: чистый список, читается в обычном шрифте) --- */
+function buildShareText(r) {
+  const c = r.input.country;
+  const m = cfg.rates.market;
+  const cur = CUR[c];
+  const ageShort = { '<3': '<3 лет', '3-5': '3-5 лет', '5-7': '5-7 лет', '>7': '>7 лет', '>3': '>3 лет' };
+  const flags = { jp: '🇯🇵', kr: '🇰🇷', cn: '🇨🇳' };
+  const params = r.input.isElectric
+    ? `${ageShort[r.input.age] || ''} · ${Math.round(r.input.powerKw)} кВт`
+    : `${ageShort[r.input.age] || ''} · ${fmtNum(r.input.volumeCc)} см³ · ${Math.round(r.input.powerHp)} л.с.`;
+  const money = (n) => fmtNum(n) + ' ₽';
+
+  let t = `🚗 WT — Расчёт авто\n${flags[c]} ${params}\n\n`;
+  t += `📦 Расходы по ${COUNTRY_GEN[c]}: ${money(r.carCostRub + r.bankFee)}\n`;
+  t += `• Авто + доставка: ${fmtNum(r.foreignTotal)} ${cur} (${rateCopy(c, m)})\n`;
+  t += `• В рублях: ${money(r.carCostRub)}\n`;
+  if (r.bankFee > 0) t += `• Комиссия банка ${r.bankFeePercent}%: ${money(r.bankFee)}\n`;
+  t += `\n🛃 Таможенные платежи: ${money(r.customsTotal)}\n`;
+  t += `• Пошлина и таможенный сбор: ${money(r.duty + r.customsFee)}\n`;
+  if (r.input.isElectric) { t += `• Акциз: ${money(r.excise)}\n• НДС 20%: ${money(r.vat)}\n`; }
+  t += `• Утильсбор: ${money(r.utilFee)}\n`;
+  t += `\n🇷🇺 Услуги и расходы по РФ: ${money(r.expensesSum + r.commission)}\n`;
+  r.expenses.forEach(e => { t += `• ${e.label}: ${money(e.value)}\n`; });
+  t += `• Комиссия компании: ${money(r.commission)}\n`;
+  t += `\n💰 ИТОГО ПОД КЛЮЧ: ${money(r.grandTotal)}\n`;
+  t += `\nЭтапы оплаты:\n`;
+  r.stages.filter(s => s.value > 0).forEach((s, i) => { t += `${i + 1}) ${s.label} — ${money(s.value)}\n`; });
+  return t;
 }
 
 /* --- копирование в буфер обмена с запасным вариантом --- */
