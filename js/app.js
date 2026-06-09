@@ -4,6 +4,9 @@
 const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
 const inTelegram = !!(tg && tg.initData !== undefined && tg.platform && tg.platform !== 'unknown');
 
+// Адрес бэкенда бота (заполняется после деплоя на хостинг). Пусто → отправка через t.me/share.
+const BACKEND_URL = '';
+
 /* --- состояние --- */
 const state = {
   country: 'jp',
@@ -231,10 +234,7 @@ function bindEvents() {
     }
     if (e.target.closest && e.target.closest('#btnShare')) {
       haptic('medium');
-      const url = 'https://t.me/share/url?url=' + encodeURIComponent(lastShareText);
-      if (tg && tg.openTelegramLink) tg.openTelegramLink(url);          // откроет выбор чата
-      else if (navigator.share) navigator.share({ text: lastShareText }).catch(() => {});
-      else window.open(url, '_blank');
+      shareToChat();
     }
   });
 
@@ -470,6 +470,29 @@ function buildCopyText(r) {
     + 'Этапы оплаты:\n'
     + stageLines.join('\n') + '\n'
     + '```';
+}
+
+/* --- отправка расчёта в чат ---
+ * Если есть бэкенд бота — отправляем отформатированную таблицу (как при копировании)
+ * через savePreparedInlineMessage + shareMessage. Иначе — чистый текст через t.me/share. */
+async function shareToChat() {
+  const tableText = lastCopyText.replace(/```/g, '').replace(/^\s+|\s+$/g, ''); // таблица без ```
+  if (BACKEND_URL && tg && tg.initData && tg.shareMessage &&
+      tg.isVersionAtLeast && tg.isVersionAtLeast('8.0')) {
+    try {
+      const resp = await fetch(BACKEND_URL.replace(/\/$/, '') + '/prepare', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: tg.initData, text: tableText }),
+      });
+      const data = await resp.json();
+      if (data && data.id) { tg.shareMessage(data.id); return; }
+    } catch (e) { /* упадём в запасной вариант ниже */ }
+  }
+  // запасной вариант: чистый формат через t.me/share
+  const url = 'https://t.me/share/url?url=' + encodeURIComponent(lastShareText);
+  if (tg && tg.openTelegramLink) tg.openTelegramLink(url);
+  else if (navigator.share) navigator.share({ text: lastShareText }).catch(() => {});
+  else window.open(url, '_blank');
 }
 
 /* --- текст для ОТПРАВКИ в чат (без код-блока: чистый список, читается в обычном шрифте) --- */
