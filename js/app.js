@@ -4,8 +4,8 @@
 const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
 const inTelegram = !!(tg && tg.initData !== undefined && tg.platform && tg.platform !== 'unknown');
 
-// Адрес бэкенда бота (заполняется после деплоя на хостинг). Пусто → отправка через t.me/share.
-const BACKEND_URL = '';
+// Адрес бэкенда бота (Render). Пусто → отправка через t.me/share.
+const BACKEND_URL = 'https://auto-calculator-tg.onrender.com';
 
 /* --- состояние --- */
 const state = {
