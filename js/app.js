@@ -40,8 +40,7 @@ const fmt = (n) => Math.round(n).toLocaleString('ru-RU') + ' ₽';
 const fmtNum = (n) => Math.round(n).toLocaleString('ru-RU');
 
 let cfg = buildConfig();
-let lastCopyText = '';
-let lastShareText = '';
+let lastResult = null;
 let currentExpenseItems = [];
 
 /* ============================ ИНИЦИАЛИЗАЦИЯ ============================ */
@@ -225,16 +224,21 @@ function bindEvents() {
     $$('.unit').forEach(x => x.classList.toggle('active', x === u));
   }));
 
-  // действия с расчётом (кнопки появляются внутри результата)
+  // действия с расчётом (короткая версия — до этапов, полная — внизу)
   $('#result').addEventListener('click', async (e) => {
-    if (e.target.closest && e.target.closest('#btnCopy')) {
-      const ok = await copyToClipboard(lastCopyText);
+    if (!e.target.closest || !lastResult) return;
+    const copyBtn = e.target.closest('#btnCopyShort, #btnCopyFull');
+    const shareBtn = e.target.closest('#btnShareShort, #btnShareFull');
+    if (copyBtn) {
+      const full = copyBtn.id === 'btnCopyFull';
+      const ok = await copyToClipboard(buildCopyText(lastResult, full));
       haptic(ok ? 'medium' : 'light');
-      toast(ok ? '✅ Расчёт скопирован — вставьте в чат' : 'Не удалось скопировать');
+      toast(ok ? '✅ Скопировано — вставьте в чат' : 'Не удалось скопировать');
     }
-    if (e.target.closest && e.target.closest('#btnShare')) {
+    if (shareBtn) {
+      const full = shareBtn.id === 'btnShareFull';
       haptic('medium');
-      shareToChat();
+      shareToChat(buildCopyText(lastResult, full), buildShareText(lastResult, full));
     }
   });
 
@@ -398,22 +402,28 @@ function renderResult(r) {
 
     <div class="row grand"><span class="k">ИТОГО под ключ</span><span class="v">${fmt(r.grandTotal)}</span></div>
 
+    <div class="actions-cap">Без этапов оплаты:</div>
+    <div class="result-actions">
+      <button class="copy-btn" id="btnCopyShort">📋 Копировать</button>
+      <button class="copy-btn send-btn" id="btnShareShort">📤 В чат</button>
+    </div>
+
     <div class="section-title">Этапы оплаты</div>
     ${stageRows}
 
+    <div class="actions-cap">Полный расчёт (с этапами):</div>
     <div class="result-actions">
-      <button class="copy-btn" id="btnCopy">📋 Скопировать</button>
-      <button class="copy-btn send-btn" id="btnShare">📤 Отправить в чат</button>
+      <button class="copy-btn" id="btnCopyFull">📋 Копировать</button>
+      <button class="copy-btn send-btn" id="btnShareFull">📤 В чат</button>
     </div>
   `;
-  lastCopyText = buildCopyText(r);
-  lastShareText = buildShareText(r);
+  lastResult = r;
   $('#result').classList.remove('hidden');
   $('#result').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-/* --- сборка текста расчёта (клиентская короткая версия, код-блок) --- */
-function buildCopyText(r) {
+/* --- сборка текста расчёта (код-блок); withStages=false — без этапов оплаты --- */
+function buildCopyText(r, withStages) {
   const flags = { jp: '🇯🇵', kr: '🇰🇷', cn: '🇨🇳' };
   const ageShort = { '<3': '<3 лет', '3-5': '3-5 лет', '5-7': '5-7 лет', '>7': '>7 лет', '>3': '>3 лет' };
   const ageLabel = ageShort[r.input.age] || '';
@@ -462,43 +472,42 @@ function buildCopyText(r) {
   const stageLines = r.stages.filter(s => s.value > 0)
     .map((s, i) => `${i + 1}) ${s.short || s.label} — ${money(s.value)}`);
 
-  return '```\n'
+  let out = '```\n'
     + `🚗 WT — Расчёт авто\n`
     + `${flags[c]} ${params}\n`
     + body
     + heavy + '\n'
     + line('ИТОГО ПОД КЛЮЧ', money(r.grandTotal)) + '\n'
-    + heavy + '\n\n'
-    + 'Этапы оплаты:\n'
-    + stageLines.join('\n') + '\n'
-    + '```';
+    + heavy + '\n';
+  if (withStages !== false) out += '\nЭтапы оплаты:\n' + stageLines.join('\n') + '\n';
+  return out + '```';
 }
 
 /* --- отправка расчёта в чат ---
  * Если есть бэкенд бота — отправляем отформатированную таблицу (как при копировании)
  * через savePreparedInlineMessage + shareMessage. Иначе — чистый текст через t.me/share. */
-async function shareToChat() {
-  const tableText = lastCopyText.replace(/```/g, '').replace(/^\s+|\s+$/g, ''); // таблица без ```
+async function shareToChat(tableText, shareText) {
+  const tbl = tableText.replace(/```/g, '').replace(/^\s+|\s+$/g, ''); // таблица без ```
   if (BACKEND_URL && tg && tg.initData && tg.shareMessage &&
       tg.isVersionAtLeast && tg.isVersionAtLeast('8.0')) {
     try {
       const resp = await fetch(BACKEND_URL.replace(/\/$/, '') + '/prepare', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData: tg.initData, text: tableText }),
+        body: JSON.stringify({ initData: tg.initData, text: tbl }),
       });
       const data = await resp.json();
       if (data && data.id) { tg.shareMessage(data.id); return; }
     } catch (e) { /* упадём в запасной вариант ниже */ }
   }
   // запасной вариант: чистый формат через t.me/share
-  const url = 'https://t.me/share/url?url=' + encodeURIComponent(lastShareText);
+  const url = 'https://t.me/share/url?url=' + encodeURIComponent(shareText);
   if (tg && tg.openTelegramLink) tg.openTelegramLink(url);
-  else if (navigator.share) navigator.share({ text: lastShareText }).catch(() => {});
+  else if (navigator.share) navigator.share({ text: shareText }).catch(() => {});
   else window.open(url, '_blank');
 }
 
 /* --- текст для ОТПРАВКИ в чат (без код-блока: чистый список, читается в обычном шрифте) --- */
-function buildShareText(r) {
+function buildShareText(r, withStages) {
   const c = r.input.country;
   const m = cfg.rates.market;
   const cur = CUR[c];
@@ -524,8 +533,10 @@ function buildShareText(r) {
   r.expenses.forEach(e => { t += `• ${e.label}: ${money(e.value)}\n`; });
   t += `• Комиссия компании: ${money(r.commission)}\n`;
   t += `\n💰 ИТОГО ПОД КЛЮЧ: ${money(r.grandTotal)}\n`;
-  t += `\nЭтапы оплаты:\n`;
-  r.stages.filter(s => s.value > 0).forEach((s, i) => { t += `${i + 1}) ${s.label} — ${money(s.value)}\n`; });
+  if (withStages !== false) {
+    t += `\nЭтапы оплаты:\n`;
+    r.stages.filter(s => s.value > 0).forEach((s, i) => { t += `${i + 1}) ${s.label} — ${money(s.value)}\n`; });
+  }
   return t;
 }
 
