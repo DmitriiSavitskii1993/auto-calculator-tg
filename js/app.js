@@ -381,9 +381,10 @@ function renderResult(r) {
     </div>
 
     <div class="sec-head"><span>Расходы по ${COUNTRY_GEN[c]}</span><span class="sec-sum">${fmt(foreignBlock)}</span></div>
-    <div class="row sub"><span class="k">Цена авто + доставка</span><span class="v">${fmtNum(r.foreignTotal)} ${cur}</span></div>
+    <div class="row sub"><span class="k">Цена авто</span><span class="v">${fmtNum(r.input.carPrice)} ${cur}</span></div>
+    <div class="row sub"><span class="k">Доставка + фрахт</span><span class="v">${fmtNum(r.input.deliveryForeign)} ${cur}</span></div>
     <div class="row sub"><span class="k">Курс</span><span class="v">${rateDisplay(c, m)}</span></div>
-    <div class="row sub"><span class="k">В рублях</span><span class="v">${fmt(r.carCostRub)}</span></div>
+    <div class="row sub"><span class="k">В рублях (итого)</span><span class="v">${fmt(r.carCostRub)}</span></div>
     ${r.bankFee > 0 ? `<div class="row sub"><span class="k">Комиссия банка (${r.bankFeePercent}%)</span><span class="v">${fmt(r.bankFee)}</span></div>` : ''}
 
     <div class="sec-head"><span>Таможенные платежи</span><span class="sec-sum">${fmt(r.customsTotal)}</span></div>
@@ -428,7 +429,8 @@ function buildCopyText(r) {
   // блоки расходов с подытогами
   const sections = [];
   const foreignItems = [
-    ['  Авто+доставка', fmtNum(r.foreignTotal) + ' ' + cur],
+    ['  Цена авто', fmtNum(r.input.carPrice) + ' ' + cur],
+    ['  Доставка+фрахт', fmtNum(r.input.deliveryForeign) + ' ' + cur],
     ['  Курс', rateCopy(c, mk)],
     ['  В рублях', money(r.carCostRub)],
   ];
@@ -509,7 +511,9 @@ function buildShareText(r) {
 
   let t = `🚗 WT — Расчёт авто\n${flags[c]} ${params}\n\n`;
   t += `📦 Расходы по ${COUNTRY_GEN[c]}: ${money(r.carCostRub + r.bankFee)}\n`;
-  t += `• Авто + доставка: ${fmtNum(r.foreignTotal)} ${cur} (${rateCopy(c, m)})\n`;
+  t += `• Цена авто: ${fmtNum(r.input.carPrice)} ${cur}\n`;
+  t += `• Доставка + фрахт: ${fmtNum(r.input.deliveryForeign)} ${cur}\n`;
+  t += `• Курс: ${rateCopy(c, m)}\n`;
   t += `• В рублях: ${money(r.carCostRub)}\n`;
   if (r.bankFee > 0) t += `• Комиссия банка ${r.bankFeePercent}%: ${money(r.bankFee)}\n`;
   t += `\n🛃 Таможенные платежи: ${money(r.customsTotal)}\n`;
