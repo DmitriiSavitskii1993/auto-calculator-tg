@@ -470,17 +470,17 @@ function buildCopyText(r, withStages) {
   rfItems.push(['  Комиссия', money(r.commission)]);
   sections.push({ head: ['РАСХОДЫ ПО РФ', money(r.expensesSum + r.commission)], items: rfItems });
 
-  // фикс. ширина 30; подытоги — ЗАГЛАВНЫМИ + тонкие линии-разделители, итог — толстой линией
-  const W = 30;
+  // ширина выравнивания значений = 30; длина линий-разделителей короче (LW),
+  // чтобы в MAX/WhatsApp полосы не растягивались на всю ширину
+  const W = 30, LW = 16;
   const line = (l, v) => (l.length + v.length + 1 > W) ? l + ' ' + v : l + ' '.repeat(W - l.length - v.length) + v;
-  const thin = '─'.repeat(W);
-  const heavy = '━'.repeat(W);
+  const thin = '─'.repeat(LW);
+  const heavy = '━'.repeat(LW);
 
   let body = '';
   sections.forEach(sec => {
-    // одна тонкая линия-разделитель над подытогом (без дублирующей снизу —
-    // иначе в MAX/WhatsApp получается слишком много полос)
-    body += thin + '\n' + line(sec.head[0], sec.head[1]) + '\n';
+    // подытог обрамлён короткими линиями сверху и снизу — выделяется отдельной полосой
+    body += thin + '\n' + line(sec.head[0], sec.head[1]) + '\n' + thin + '\n';
     sec.items.forEach(([l, v]) => { body += line(l, v) + '\n'; });
   });
 
