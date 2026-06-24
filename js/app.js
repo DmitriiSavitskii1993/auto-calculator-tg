@@ -245,9 +245,17 @@ function bindEvents() {
     const shareBtn = e.target.closest('#btnShareShort, #btnShareFull');
     if (copyBtn) {
       const full = copyBtn.id === 'btnCopyFull';
-      const ok = await copyToClipboard(buildCopyText(lastResult, full));
-      haptic(ok ? 'medium' : 'light');
-      toast(ok ? '✅ Скопировано — вставьте в чат' : 'Не удалось скопировать');
+      const tableTxt = buildCopyText(lastResult, full).replace(/```/g, '').replace(/^\s+|\s+$/g, '');
+      // сначала пробуем картинкой (ровно в МАКС/WhatsApp), иначе — текстом
+      const okImg = await copyTableAsImage(tableTxt);
+      if (okImg) {
+        haptic('medium');
+        toast('✅ Таблица скопирована картинкой — вставьте в чат');
+      } else {
+        const ok = await copyToClipboard(buildCopyText(lastResult, full));
+        haptic(ok ? 'medium' : 'light');
+        toast(ok ? '✅ Скопировано — вставьте в чат' : 'Не удалось скопировать');
+      }
     }
     if (shareBtn) {
       const full = shareBtn.id === 'btnShareFull';
@@ -553,6 +561,55 @@ function buildShareText(r, withStages) {
     r.stages.filter(s => s.value > 0).forEach((s, i) => { t += `${i + 1}) ${s.label} — ${money(s.value)}\n`; });
   }
   return t;
+}
+
+/* --- таблица картинкой ---
+ * В МАКС/WhatsApp нет моноширинного шрифта, поэтому текстовая таблица съезжает.
+ * Рисуем её в PNG (моноширинный шрифт на canvas) — картинка выглядит ровно
+ * в любом мессенджере. */
+function renderTableToBlob(text) {
+  return new Promise((resolve) => {
+    try {
+      const lines = text.split('\n');
+      const scale = Math.min(3, Math.max(2, window.devicePixelRatio || 2));
+      const fs = 30, lh = 42, padX = 30, padY = 28;
+      const font = `${fs}px ui-monospace, "SF Mono", Menlo, "DejaVu Sans Mono", "Courier New", monospace`;
+      const meas = document.createElement('canvas').getContext('2d');
+      meas.font = font;
+      let maxW = 0;
+      lines.forEach(l => { const w = meas.measureText(l).width; if (w > maxW) maxW = w; });
+      const W = Math.ceil(maxW) + padX * 2;
+      const H = lines.length * lh + padY * 2;
+      const cv = document.createElement('canvas');
+      cv.width = Math.round(W * scale);
+      cv.height = Math.round(H * scale);
+      const ctx = cv.getContext('2d');
+      ctx.scale(scale, scale);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#111111';
+      ctx.font = font;
+      ctx.textBaseline = 'top';
+      lines.forEach((l, i) => ctx.fillText(l, padX, padY + i * lh));
+      cv.toBlob((b) => resolve(b), 'image/png');
+    } catch (e) { resolve(null); }
+  });
+}
+
+async function copyTableAsImage(text) {
+  if (!window.ClipboardItem || !navigator.clipboard || !navigator.clipboard.write) return false;
+  // Safari/iOS принимает Promise<Blob> в ClipboardItem прямо в обработчике клика
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': renderTableToBlob(text) })]);
+    return true;
+  } catch (e) {
+    try {
+      const blob = await renderTableToBlob(text);
+      if (!blob) return false;
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      return true;
+    } catch (e2) { return false; }
+  }
 }
 
 /* --- копирование в буфер обмена с запасным вариантом --- */
