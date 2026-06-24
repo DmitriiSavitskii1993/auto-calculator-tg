@@ -245,9 +245,8 @@ function bindEvents() {
     const shareBtn = e.target.closest('#btnShareShort, #btnShareFull');
     if (copyBtn) {
       const full = copyBtn.id === 'btnCopyFull';
-      const tableTxt = buildCopyText(lastResult, full).replace(/```/g, '').replace(/^\s+|\s+$/g, '');
       // сначала пробуем картинкой (ровно в МАКС/WhatsApp), иначе — текстом
-      const okImg = await copyTableAsImage(tableTxt);
+      const okImg = await copyTableAsImage(buildTableLines(lastResult, full));
       if (okImg) {
         haptic('medium');
         toast('✅ Таблица скопирована картинкой — вставьте в чат');
@@ -444,8 +443,9 @@ function renderResult(r) {
   $('#result').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-/* --- сборка текста расчёта (код-блок); withStages=false — без этапов оплаты --- */
-function buildCopyText(r, withStages) {
+/* --- строки расчёта с разметкой (kind) — общий источник для текста и картинки ---
+ * kind: title | div | divh | head (подытог секции) | item | grand (итого) | blank */
+function buildTableLines(r, withStages) {
   const flags = { jp: '🇯🇵', kr: '🇰🇷', cn: '🇨🇳' };
   const ageShort = { '<3': '<3 лет', '3-5': '3-5 лет', '5-7': '5-7 лет', '>7': '>7 лет', '>3': '>3 лет' };
   const ageLabel = ageShort[r.input.age] || '';
@@ -478,32 +478,38 @@ function buildCopyText(r, withStages) {
   rfItems.push(['  Комиссия', money(r.commission)]);
   sections.push({ head: ['РАСХОДЫ ПО РФ', money(r.expensesSum + r.commission)], items: rfItems });
 
-  // ширина выравнивания значений = 30; длина линий-разделителей короче (LW),
-  // чтобы в MAX/WhatsApp полосы не растягивались на всю ширину
-  const W = 30, LW = 16;
+  // линии-разделители на всю ширину таблицы (копируется картинкой, поэтому длина не мешает)
+  const W = 30;
   const line = (l, v) => (l.length + v.length + 1 > W) ? l + ' ' + v : l + ' '.repeat(W - l.length - v.length) + v;
-  const thin = '─'.repeat(LW);
-  const heavy = '━'.repeat(LW);
+  const thin = '─'.repeat(W);
+  const heavy = '━'.repeat(W);
 
-  let body = '';
+  const out = [];
+  out.push({ text: '🚗 WT — Расчёт авто', kind: 'title' });
+  out.push({ text: `${flags[c]} ${params}`, kind: 'title' });
   sections.forEach(sec => {
-    // подытог обрамлён короткими линиями сверху и снизу — выделяется отдельной полосой
-    body += thin + '\n' + line(sec.head[0], sec.head[1]) + '\n' + thin + '\n';
-    sec.items.forEach(([l, v]) => { body += line(l, v) + '\n'; });
+    out.push({ text: thin, kind: 'div' });
+    out.push({ text: line(sec.head[0], sec.head[1]), kind: 'head' });
+    out.push({ text: thin, kind: 'div' });
+    sec.items.forEach(([l, v]) => out.push({ text: line(l, v), kind: 'item' }));
   });
+  out.push({ text: heavy, kind: 'divh' });
+  out.push({ text: line('ИТОГО ПОД КЛЮЧ', money(r.grandTotal)), kind: 'grand' });
+  out.push({ text: heavy, kind: 'divh' });
 
-  const stageLines = r.stages.filter(s => s.value > 0)
-    .map((s, i) => `${i + 1}) ${s.short || s.label} — ${money(s.value)}`);
+  if (withStages !== false) {
+    const stageLines = r.stages.filter(s => s.value > 0)
+      .map((s, i) => `${i + 1}) ${s.short || s.label} — ${money(s.value)}`);
+    out.push({ text: '', kind: 'blank' });
+    out.push({ text: 'Этапы оплаты:', kind: 'item' });
+    stageLines.forEach(s => out.push({ text: s, kind: 'item' }));
+  }
+  return out;
+}
 
-  let out = '```\n'
-    + `🚗 WT — Расчёт авто\n`
-    + `${flags[c]} ${params}\n`
-    + body
-    + heavy + '\n'
-    + line('ИТОГО ПОД КЛЮЧ', money(r.grandTotal)) + '\n'
-    + heavy + '\n';
-  if (withStages !== false) out += '\nЭтапы оплаты:\n' + stageLines.join('\n') + '\n';
-  return out + '```';
+/* --- текст расчёта в код-блоке (для копирования текстом / отправки в Telegram) --- */
+function buildCopyText(r, withStages) {
+  return '```\n' + buildTableLines(r, withStages).map(o => o.text).join('\n') + '\n```';
 }
 
 /* --- отправка расчёта в чат ---
@@ -567,17 +573,26 @@ function buildShareText(r, withStages) {
  * В МАКС/WhatsApp нет моноширинного шрифта, поэтому текстовая таблица съезжает.
  * Рисуем её в PNG (моноширинный шрифт на canvas) — картинка выглядит ровно
  * в любом мессенджере. */
-function renderTableToBlob(text) {
+function renderTableToBlob(lines) {
   return new Promise((resolve) => {
     try {
-      const lines = text.split('\n');
       const scale = Math.min(3, Math.max(2, window.devicePixelRatio || 2));
       const fs = 30, lh = 42, padX = 30, padY = 28;
-      const font = `${fs}px ui-monospace, "SF Mono", Menlo, "DejaVu Sans Mono", "Courier New", monospace`;
+      const mono = '"SF Mono", Menlo, "DejaVu Sans Mono", "Courier New", ui-monospace, monospace';
+      const fontFor = (bold) => `${bold ? 'bold ' : ''}${fs}px ${mono}`;
+      // цвет и насыщенность по типу строки
+      const isBold = (k) => k === 'head' || k === 'grand';
+      const colorFor = (k) =>
+        k === 'head'  ? '#1f9d57' :   // подытоги секций — зелёным
+        k === 'grand' ? '#2563eb' :   // итого под ключ — синим
+        k === 'div'   ? '#c2c7cf' :   // тонкие линии — светло-серым
+        '#111111';                    // остальное — почти чёрным
       const meas = document.createElement('canvas').getContext('2d');
-      meas.font = font;
       let maxW = 0;
-      lines.forEach(l => { const w = meas.measureText(l).width; if (w > maxW) maxW = w; });
+      lines.forEach(o => {
+        meas.font = fontFor(isBold(o.kind));
+        const w = meas.measureText(o.text).width; if (w > maxW) maxW = w;
+      });
       const W = Math.ceil(maxW) + padX * 2;
       const H = lines.length * lh + padY * 2;
       const cv = document.createElement('canvas');
@@ -587,24 +602,26 @@ function renderTableToBlob(text) {
       ctx.scale(scale, scale);
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, W, H);
-      ctx.fillStyle = '#111111';
-      ctx.font = font;
       ctx.textBaseline = 'top';
-      lines.forEach((l, i) => ctx.fillText(l, padX, padY + i * lh));
+      lines.forEach((o, i) => {
+        ctx.font = fontFor(isBold(o.kind));
+        ctx.fillStyle = colorFor(o.kind);
+        ctx.fillText(o.text, padX, padY + i * lh);
+      });
       cv.toBlob((b) => resolve(b), 'image/png');
     } catch (e) { resolve(null); }
   });
 }
 
-async function copyTableAsImage(text) {
+async function copyTableAsImage(lines) {
   if (!window.ClipboardItem || !navigator.clipboard || !navigator.clipboard.write) return false;
   // Safari/iOS принимает Promise<Blob> в ClipboardItem прямо в обработчике клика
   try {
-    await navigator.clipboard.write([new ClipboardItem({ 'image/png': renderTableToBlob(text) })]);
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': renderTableToBlob(lines) })]);
     return true;
   } catch (e) {
     try {
-      const blob = await renderTableToBlob(text);
+      const blob = await renderTableToBlob(lines);
       if (!blob) return false;
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
       return true;
