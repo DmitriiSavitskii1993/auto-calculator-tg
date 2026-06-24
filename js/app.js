@@ -53,6 +53,20 @@ function init() {
   loadCbr();
   setupMainButton();
   setupKeyboardDone();
+  hydrateFromCloud();   // подтянуть сохранённые курсы/настройки из облака Telegram
+}
+
+/* Курсы/настройки сохраняются в CloudStorage Telegram (переживают очистку кэша
+   WebView и синхронизируются между устройствами). Подтягиваем и перерисовываем. */
+async function hydrateFromCloud() {
+  try {
+    const cloud = await loadOverridesFromCloud();
+    if (!cloud) return;
+    mergeCloudOverrides(cloud);
+    cfg = buildConfig();
+    renderRatesPanel();
+    renderExpenses();
+  } catch (e) {}
 }
 
 /* --- кнопка «Рассчитать» --- */
@@ -464,8 +478,9 @@ function buildCopyText(r, withStages) {
 
   let body = '';
   sections.forEach(sec => {
-    // подытог обрамлён линиями сверху и снизу — выделяется отдельной полосой
-    body += thin + '\n' + line(sec.head[0], sec.head[1]) + '\n' + thin + '\n';
+    // одна тонкая линия-разделитель над подытогом (без дублирующей снизу —
+    // иначе в MAX/WhatsApp получается слишком много полос)
+    body += thin + '\n' + line(sec.head[0], sec.head[1]) + '\n';
     sec.items.forEach(([l, v]) => { body += line(l, v) + '\n'; });
   });
 

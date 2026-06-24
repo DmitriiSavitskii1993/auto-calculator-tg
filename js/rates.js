@@ -26,6 +26,7 @@ function getOverrides() {
 }
 function setOverrides(obj) {
   localStorage.setItem(STORE_KEY, JSON.stringify(obj));
+  saveOverridesToCloud(obj);
 }
 function patchOverrides(patch) {
   const cur = getOverrides();
@@ -35,6 +36,40 @@ function patchOverrides(patch) {
 }
 function resetOverrides() {
   localStorage.removeItem(STORE_KEY);
+  if (cloudAvailable()) { try { window.Telegram.WebApp.CloudStorage.removeItem(CLOUD_KEY, function () {}); } catch (e) {} }
+}
+
+/* --- облачное хранилище Telegram (CloudStorage) ---
+ * localStorage в WebView Telegram нередко очищается между сессиями, поэтому курсы
+ * «сбрасывались». CloudStorage привязан к аккаунту, переживает очистку кэша и
+ * синхронизируется между устройствами. Доступно с Bot API 6.9. */
+const CLOUD_KEY = 'overrides_v1';
+function cloudAvailable() {
+  return !!(typeof window !== 'undefined' && window.Telegram && window.Telegram.WebApp
+    && window.Telegram.WebApp.CloudStorage
+    && window.Telegram.WebApp.isVersionAtLeast && window.Telegram.WebApp.isVersionAtLeast('6.9'));
+}
+function saveOverridesToCloud(obj) {
+  if (!cloudAvailable()) return;
+  try { window.Telegram.WebApp.CloudStorage.setItem(CLOUD_KEY, JSON.stringify(obj), function () {}); }
+  catch (e) {}
+}
+function loadOverridesFromCloud() {
+  return new Promise(function (resolve) {
+    if (!cloudAvailable()) { resolve(null); return; }
+    try {
+      window.Telegram.WebApp.CloudStorage.getItem(CLOUD_KEY, function (err, val) {
+        if (err || !val) { resolve(null); return; }
+        try { resolve(JSON.parse(val)); } catch (e) { resolve(null); }
+      });
+    } catch (e) { resolve(null); }
+  });
+}
+/* влить облачные правки в локальные (без обратной записи в облако) */
+function mergeCloudOverrides(cloudObj) {
+  if (!cloudObj) return;
+  const merged = deepMerge(getOverrides(), cloudObj);
+  localStorage.setItem(STORE_KEY, JSON.stringify(merged));
 }
 
 /* --- итоговая конфигурация: данные по умолчанию + ручные правки --- */
@@ -84,5 +119,6 @@ if (typeof window !== 'undefined') {
   Object.assign(window, {
     buildConfig, getOverrides, setOverrides, patchOverrides, resetOverrides,
     fetchCbr, getCbrCache, deepMerge,
+    cloudAvailable, saveOverridesToCloud, loadOverridesFromCloud, mergeCloudOverrides,
   });
 }
