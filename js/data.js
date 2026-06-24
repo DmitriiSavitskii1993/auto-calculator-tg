@@ -218,6 +218,7 @@ const CALC_DATA = {
         { key:'tech',     label:'Справка на техническое средство', short:'Справка ТС', value:550 },
         { key:'svh',      label:'СВХ (хранение и ПРР)', short:'СВХ', value:3000 },
         { key:'export',   label:'Вывоз в ТК', short:'Вывоз в ТК', value:5000 },
+        { key:'rf_logistics', label:'Логистика по РФ', short:'Логистика РФ', value:0 },
       ],
     },
     // Япония — САНКЦИОННОЕ авто: фрахт по формуле (490000+5%), СВХ 50000. Курс/банк как обычно.
@@ -231,6 +232,7 @@ const CALC_DATA = {
         { key:'tech',     label:'Справка на техническое средство', short:'Справка ТС', value:550 },
         { key:'svh',      label:'СВХ (хранение и ПРР)', short:'СВХ', value:50000 },
         { key:'export',   label:'Вывоз в ТК', short:'Вывоз в ТК', value:5000 },
+        { key:'rf_logistics', label:'Логистика по РФ', short:'Логистика РФ', value:0 },
       ],
     },
     kr: {
@@ -247,6 +249,7 @@ const CALC_DATA = {
         { key:'lab',      label:'ИЛ / СБКТС / ЭПТС', short:'ИЛ/СБКТС/ЭПТС', value:25000 },
         { key:'broker',   label:'Услуги брокера / вывоз с СВХ / стоянка', short:'Брокер/вывоз', value:22000 },
         { key:'export',   label:'Вывоз в ТК', short:'Вывоз в ТК', value:5000 },
+        { key:'rf_logistics', label:'Логистика по РФ', short:'Логистика РФ', value:0 },
       ],
     },
     cn: {
@@ -263,6 +266,7 @@ const CALC_DATA = {
         { key:'transit',  label:'Оформление транзитной декларации', short:'Транзит. декл.', value:17000 },
         { key:'expertise',label:'Экспертиза ТС', short:'Экспертиза ТС', value:2000 },
         { key:'export',   label:'Вывоз в ТК / доставка к дому', short:'Вывоз/доставка', value:10000 },
+        { key:'rf_logistics', label:'Логистика по РФ', short:'Логистика РФ', value:0 },
       ],
     },
   },

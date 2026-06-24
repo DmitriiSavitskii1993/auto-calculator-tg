@@ -393,7 +393,7 @@ function renderResult(r) {
     <div class="row sub"><span class="k">Акциз (${fmtNum(r.input.powerHp)} л.с.)</span><span class="v">${fmt(r.excise)}</span></div>
     <div class="row sub"><span class="k">НДС 20%</span><span class="v">${fmt(r.vat)}</span></div>` : '';
 
-  const expRows = r.expenses.map(e =>
+  const expRows = r.expenses.filter(e => e.value > 0).map(e =>
     `<div class="row sub"><span class="k">${e.label}</span><span class="v">${fmt(e.value)}</span></div>`).join('');
 
   const stageRows = r.stages.filter(s => s.value > 0).map((s, i) =>
@@ -474,7 +474,7 @@ function buildTableLines(r, withStages) {
   customsItems.push([`  Утиль (${r.utilCoef})`, money(r.utilFee)]);
   sections.push({ head: ['ТАМОЖНЯ', money(r.customsTotal)], items: customsItems });
 
-  const rfItems = r.expenses.map(e => ['  ' + (e.short || e.label), money(e.value)]);
+  const rfItems = r.expenses.filter(e => e.value > 0).map(e => ['  ' + (e.short || e.label), money(e.value)]);
   rfItems.push(['  Комиссия', money(r.commission)]);
   sections.push({ head: ['РАСХОДЫ ПО РФ', money(r.expensesSum + r.commission)], items: rfItems });
 
