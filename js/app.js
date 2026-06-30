@@ -329,7 +329,11 @@ function bindEvents() {
 
   $('#isElectric').addEventListener('change', (e) => {
     state.isElectric = e.target.checked;
+    // официальный расчёт акциза/утиля для EV — от кВт; для ДВС привычнее л.с.
+    state.powerUnit = e.target.checked ? 'kw' : 'hp';
+    syncPowerUnit();
     renderCountry();
+    persistInputs();
     hideResult();
   });
 
@@ -531,8 +535,8 @@ function renderResult(r) {
   const rfBlock = r.expensesSum + r.commission;
 
   const evRows = r.input.isElectric ? `
-    <div class="row sub"><span class="k">Акциз (${fmtNum(r.input.powerHp)} л.с.)</span><span class="v">${fmt(r.excise)}</span></div>
-    <div class="row sub"><span class="k">НДС 20%</span><span class="v">${fmt(r.vat)}</span></div>` : '';
+    <div class="row sub"><span class="k">Акциз (${Math.round(r.input.powerKw)} кВт)</span><span class="v">${fmt(r.excise)}</span></div>
+    <div class="row sub"><span class="k">НДС ${Math.round(cfg.evVatPercent * 100)}%</span><span class="v">${fmt(r.vat)}</span></div>` : '';
 
   const expRows = r.expenses.filter(e => e.value > 0).map(e =>
     `<div class="row sub"><span class="k">${e.label}</span><span class="v">${fmt(e.value)}</span></div>`).join('');
@@ -613,7 +617,7 @@ function buildTableLines(r, withStages) {
   sections.push({ head: ['РАСХОДЫ ПО ' + COUNTRY_UP[c], money(r.carCostRub + r.bankFee)], items: foreignItems });
 
   const customsItems = [['  Пошлина+сбор', money(r.duty + r.customsFee)]];
-  if (r.input.isElectric) { customsItems.push(['  Акциз', money(r.excise)]); customsItems.push(['  НДС 20%', money(r.vat)]); }
+  if (r.input.isElectric) { customsItems.push(['  Акциз', money(r.excise)]); customsItems.push(['  НДС ' + Math.round(cfg.evVatPercent * 100) + '%', money(r.vat)]); }
   customsItems.push([`  Утиль (${r.utilCoef})`, money(r.utilFee)]);
   sections.push({ head: ['ТАМОЖНЯ', money(r.customsTotal)], items: customsItems });
 
@@ -705,7 +709,7 @@ function buildShareText(r, withStages) {
   if (r.bankFee > 0) t += `• Комиссия банка ${r.bankFeePercent}%: ${money(r.bankFee)}\n`;
   t += `\n🛃 Таможенные платежи: ${money(r.customsTotal)}\n`;
   t += `• Пошлина и таможенный сбор: ${money(r.duty + r.customsFee)}\n`;
-  if (r.input.isElectric) { t += `• Акциз: ${money(r.excise)}\n• НДС 20%: ${money(r.vat)}\n`; }
+  if (r.input.isElectric) { t += `• Акциз: ${money(r.excise)}\n• НДС ${Math.round(cfg.evVatPercent * 100)}%: ${money(r.vat)}\n`; }
   t += `• Утильсбор: ${money(r.utilFee)}\n`;
   t += `\n🇷🇺 Услуги и расходы по РФ: ${money(r.expensesSum + r.commission)}\n`;
   r.expenses.forEach(e => { t += `• ${e.label}: ${money(e.value)}\n`; });

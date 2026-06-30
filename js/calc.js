@@ -85,16 +85,18 @@ function calcDutyBlock(cfg, p) {
   const cbrEur = cfg.rates.cbr.EUR;
   const customsFee = findCustomsFee(cfg, p.customsValueRub);
 
-  // --- Электрокар: коммерческий ввоз (пошлина 15% + акциз + НДС 20%) ---
+  // --- Электрокар: пошлина 15% + акциз + НДС 22% (СТП, физлицо, 2026) ---
   if (p.isElectric) {
     const duty   = cfg.evDutyPercent * p.customsValueRub;
-    const exRow  = cfg.exciseEv.find(r => p.powerHp <= r.hpMax) || cfg.exciseEv[cfg.exciseEv.length - 1];
-    const excise = exRow.rub * p.powerHp;
+    // акциз: НК РФ ст.193 — ставка за 0.75 кВт, база = мощность(кВт) / 0.75
+    const exciseUnits = p.powerKw / 0.75;
+    const exRow  = cfg.exciseEv.find(r => exciseUnits <= r.unitMax) || cfg.exciseEv[cfg.exciseEv.length - 1];
+    const excise = exRow.rub * exciseUnits;
     const vat    = cfg.evVatPercent * (p.customsValueRub + duty + excise);
     return {
       duty, excise, vat, customsFee,
       total: duty + excise + vat + customsFee,
-      method: 'Электрокар: пошлина 15% + акциз + НДС 20%',
+      method: `Электрокар: пошлина ${(cfg.evDutyPercent * 100).toFixed(0)}% + акциз + НДС ${(cfg.evVatPercent * 100).toFixed(0)}%`,
     };
   }
 
@@ -170,7 +172,7 @@ function calculate(input, cfg) {
   const duty = calcDutyBlock(cfg, {
     isElectric: !!input.isElectric,
     age: input.age,
-    volumeCc, powerHp,
+    volumeCc, powerHp, powerKw,
     customsValueRub, customsValueEur,
   });
 
