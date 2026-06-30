@@ -1,4 +1,25 @@
 node_modules/
-bot/.env
 .DS_Store
 *.log
+
+# Секреты и переменные окружения (никогда не коммитить)
+.env
+.env.*
+!.env.example
+
+# Приватные ключи и сертификаты (защита от случайного коммита)
+*.pem
+*.key
+*.ppk
+*.p12
+*.pfx
+*.keystore
+*.jks
+*.mobileprovision
+key.properties
+id_rsa*
+id_ed25519*
+*_ed25519
+*_rsa
+*_key
+auto_calc_github
