@@ -93,6 +93,10 @@ input:focus, select:focus { border-color: var(--accent); }
 .exp-item { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
 .exp-item .exp-label { flex: 1; font-size: 13px; color: var(--text); }
 .exp-item input { width: 110px; padding: 8px; font-size: 14px; }
+/* поле города под «Логистика по РФ» */
+.exp-item.exp-city { margin-top: -2px; margin-bottom: 12px; }
+.exp-item.exp-city .exp-label { color: var(--hint); font-size: 12px; }
+.exp-item.exp-city input { width: 150px; text-align: left; }
 
 /* --- Результат --- */
 .result { background: var(--card); border-radius: var(--radius); padding: 16px; margin-bottom: 12px;

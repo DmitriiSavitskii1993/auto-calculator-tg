@@ -14,6 +14,7 @@ const state = {
   isSanctioned: false,  // санкционное авто (Япония)
   isNotDvfo: false,     // не из ДВФО → нужна врем. регистрация (+15 000 ₽)
   powerUnit: 'hp',
+  logisticsCity: '',    // город доставки по РФ (к строке «Логистика по РФ»)
 };
 
 /* текущий пресет расходов (с учётом санкций для Японии) */
@@ -28,8 +29,7 @@ const CUR = { jp: '¥', cn: '¥', kr: '₩' };
 const ALL_RATE_FIELDS = [
   { key: 'JPY100_ATB', label: '¥ за 100 (АТБ)', step: 0.01 },
   { key: 'CNY', label: '¥ (CNY) за 1', step: 0.01 },
-  { key: 'KRW_per_USDT', label: 'вон за 1 USDT', step: 1 },
-  { key: 'USDT_RUB', label: 'USDT → ₽', step: 0.01 },
+  { key: 'KRW1000', label: '₩ за 1000 → ₽', step: 0.01 },
 ];
 
 /* --- утилиты --- */
@@ -43,17 +43,118 @@ let cfg = buildConfig();
 let lastResult = null;
 let currentExpenseItems = [];
 
+/* --- экранирование значения для HTML-атрибута (город вводится вручную) --- */
+const escapeAttr = (s) => String(s == null ? '' : s)
+  .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/* =================== ПОСЛЕДНИЕ ВВЕДЁННЫЕ ДАННЫЕ (по странам) ===================
+ * Запоминаем по каждой стране: возраст, объём, мощность (+ед.), цену, аукцион (Япония),
+ * город логистики. Храним в localStorage и дублируем в Telegram CloudStorage,
+ * чтобы переживало очистку кэша WebView и синхронизировалось между устройствами. */
+const LAST_INPUTS_KEY   = 'calc_last_inputs_v1'; // localStorage
+const LAST_INPUTS_CLOUD = 'last_inputs_v1';      // Telegram CloudStorage
+
+function getLastInputs() {
+  try { return JSON.parse(localStorage.getItem(LAST_INPUTS_KEY)) || {}; }
+  catch (e) { return {}; }
+}
+function saveLastInputs(obj) {
+  try { localStorage.setItem(LAST_INPUTS_KEY, JSON.stringify(obj)); } catch (e) {}
+  if (cloudAvailable()) {
+    try { tg.CloudStorage.setItem(LAST_INPUTS_CLOUD, JSON.stringify(obj), function () {}); } catch (e) {}
+  }
+}
+function loadLastInputsFromCloud() {
+  return new Promise(function (resolve) {
+    if (!cloudAvailable()) { resolve(null); return; }
+    try {
+      tg.CloudStorage.getItem(LAST_INPUTS_CLOUD, function (err, val) {
+        if (err || !val) { resolve(null); return; }
+        try { resolve(JSON.parse(val)); } catch (e) { resolve(null); }
+      });
+    } catch (e) { resolve(null); }
+  });
+}
+
+/* собрать текущие поля формы в объект для текущей страны */
+function captureInputs() {
+  const sel = $('#auction');
+  return {
+    age: $('#age') ? $('#age').value : '',
+    volumeCc: $('#volume') ? $('#volume').value : '',
+    power: $('#power') ? $('#power').value : '',
+    powerUnit: state.powerUnit,
+    carPrice: $('#carPrice') ? $('#carPrice').value : '',
+    auction: (state.country === 'jp' && sel) ? sel.value : '',
+    city: $('#logCity') ? $('#logCity').value : (state.logisticsCity || ''),
+  };
+}
+/* сохранить текущие поля под текущую страну */
+function persistInputs() {
+  const all = getLastInputs();
+  all[state.country] = captureInputs();
+  saveLastInputs(all);
+}
+/* подставить сохранённые поля в форму (форма уже отрисована для текущей страны) */
+function applyFieldInputs(saved) {
+  saved = saved || {};
+  if (saved.age && $('#age')) {
+    const opt = Array.prototype.some.call($('#age').options, o => o.value === saved.age);
+    if (opt) $('#age').value = saved.age;
+  }
+  if ($('#volume'))   $('#volume').value   = saved.volumeCc != null ? saved.volumeCc : '';
+  if ($('#power'))    $('#power').value     = saved.power != null ? saved.power : '';
+  if ($('#carPrice')) $('#carPrice').value  = saved.carPrice != null ? saved.carPrice : '';
+  // аукцион (только Япония без санкций): восстанавливаем и подставляем доставку
+  if (state.country === 'jp' && !state.isSanctioned && $('#auction') &&
+      saved.auction != null && saved.auction !== '' && CALC_DATA.auctions[saved.auction]) {
+    $('#auction').value = saved.auction;
+    $('#delivery').value = CALC_DATA.auctions[saved.auction].fob;
+  }
+  updateDelivery(); // Корея/Китай/санкц.Япония — пересчитать авто-доставку от восстановленной цены
+}
+/* загрузить сохранённые поля выбранной страны в состояние + форму */
+function loadInputsFor(country) {
+  const saved = getLastInputs()[country] || {};
+  state.logisticsCity = saved.city || '';
+  state.powerUnit = saved.powerUnit || 'hp';
+  return saved;
+}
+
 /* ============================ ИНИЦИАЛИЗАЦИЯ ============================ */
 function init() {
   if (tg) { tg.ready(); tg.expand(); }
+  renderAuctions();                              // опции аукциона нужны до восстановления сохранённого
+  const saved0 = loadInputsFor(state.country);   // город / ед. мощности в state до рендера формы
   renderCountry();
-  renderAuctions();
   renderRatesPanel();
   bindEvents();
+  applyFieldInputs(saved0);                       // подставить последние введённые поля
+  syncPowerUnit();
   loadCbr();
   setupMainButton();
   setupKeyboardDone();
-  hydrateFromCloud();   // подтянуть сохранённые курсы/настройки из облака Telegram
+  setupEnterToCalc();
+  hydrateFromCloud();   // подтянуть сохранённые курсы/настройки/поля из облака Telegram
+}
+
+/* подсветить активную единицу мощности (л.с./кВт) по состоянию */
+function syncPowerUnit() {
+  $$('.unit').forEach(x => x.classList.toggle('active', x.dataset.unit === state.powerUnit));
+}
+
+/* расчёт по нажатию Enter в любом поле ввода + авто-копирование полной картинки */
+function setupEnterToCalc() {
+  $('#screenCalc').addEventListener('keydown', async (e) => {
+    if (e.key !== 'Enter') return;
+    if (e.target && e.target.tagName === 'INPUT') {
+      e.preventDefault();
+      if (e.target.blur) e.target.blur();
+      // расчёт и сразу в буфер картинкой с полным расчётом (с этапами оплаты).
+      // Enter — пользовательский жест, поэтому запись в буфер обмена разрешена.
+      if (onCalculate()) await copyCalcImage(true);
+    }
+  });
 }
 
 /* Курсы/настройки сохраняются в CloudStorage Telegram (переживают очистку кэша
@@ -61,11 +162,27 @@ function init() {
 async function hydrateFromCloud() {
   try {
     const cloud = await loadOverridesFromCloud();
-    if (!cloud) return;
-    mergeCloudOverrides(cloud);
-    cfg = buildConfig();
-    renderRatesPanel();
-    renderExpenses();
+    if (cloud) {
+      mergeCloudOverrides(cloud);
+      cfg = buildConfig();
+      renderRatesPanel();
+      renderExpenses();
+    }
+  } catch (e) {}
+  // последние введённые поля из облака (локальные правки этой сессии — приоритетнее)
+  try {
+    const inputsCloud = await loadLastInputsFromCloud();
+    if (!inputsCloud) return;
+    const localBefore = getLastInputs();
+    const hadLocal = !!localBefore[state.country];
+    const merged = Object.assign({}, inputsCloud, localBefore);
+    try { localStorage.setItem(LAST_INPUTS_KEY, JSON.stringify(merged)); } catch (e) {}
+    if (!hadLocal) {
+      const saved = loadInputsFor(state.country);
+      renderExpenses();         // обновить город в строке логистики
+      applyFieldInputs(saved);
+      syncPowerUnit();
+    }
   } catch (e) {}
 }
 
@@ -133,7 +250,7 @@ function renderRatesPanel() {
 }
 function updateRateSummary() {
   const m = cfg.rates.market;
-  $('#rateSummary').textContent = `¥100 ${m.JPY100_ATB} · CNY ${m.CNY} · USDT ${m.USDT_RUB}`;
+  $('#rateSummary').textContent = `¥100 ${m.JPY100_ATB} · CNY ${m.CNY} · ₩1000 ${m.KRW1000}`;
 }
 
 /* доставка+фрахт: Китай фикс, Корея авто по цене, Япония из аукциона (вручную) */
@@ -176,11 +293,22 @@ function renderExpenses() {
   }
   currentExpenseItems = items;
   const box = $('#expenseList');
-  box.innerHTML = items.map((it, i) => `
+  box.innerHTML = items.map((it, i) => {
+    const row = `
     <div class="exp-item">
       <span class="exp-label">${it.label}</span>
       <input type="number" inputmode="numeric" data-exp="${i}" value="${it.value}">
-    </div>`).join('');
+    </div>`;
+    // под «Логистика по РФ» — поле города доставки
+    if (it.key === 'rf_logistics') {
+      return row + `
+    <div class="exp-item exp-city">
+      <span class="exp-label">↳ Город доставки</span>
+      <input type="text" id="logCity" inputmode="text" placeholder="напр. Москва" value="${escapeAttr(state.logisticsCity)}">
+    </div>`;
+    }
+    return row;
+  }).join('');
   $('#commission').value = preset.commission;
   $('#bankFee').value = String(preset.bankFeePercent != null ? preset.bankFeePercent : 0).replace('.', ',');
 }
@@ -188,9 +316,14 @@ function renderExpenses() {
 /* ============================ СОБЫТИЯ ============================ */
 function bindEvents() {
   $$('#countryTabs .seg').forEach(b => b.addEventListener('click', () => {
+    if (b.dataset.country === state.country) return;
+    persistInputs();                            // сохранить поля уходящей страны
     state.country = b.dataset.country;
     haptic('light');
+    const saved = loadInputsFor(state.country); // город / ед. мощности в state
     renderCountry();
+    applyFieldInputs(saved);                     // подставить поля выбранной страны
+    syncPowerUnit();
     hideResult();
   }));
 
@@ -235,8 +368,22 @@ function bindEvents() {
 
   $$('.unit').forEach(u => u.addEventListener('click', () => {
     state.powerUnit = u.dataset.unit;
-    $$('.unit').forEach(x => x.classList.toggle('active', x === u));
+    syncPowerUnit();
+    persistInputs();
   }));
+
+  // запоминать последние введённые поля (возраст, объём, мощность, цена, аукцион, город)
+  $('#screenCalc').addEventListener('change', (e) => {
+    const t = e.target;
+    if (t && t.matches && t.matches('#age, #volume, #power, #carPrice, #auction, #logCity')) {
+      if (t.id === 'logCity') state.logisticsCity = t.value;
+      persistInputs();
+    }
+  });
+  // город логистики — держать state в синхроне (переживает перерисовку списка расходов)
+  $('#expenseList').addEventListener('input', (e) => {
+    if (e.target && e.target.id === 'logCity') state.logisticsCity = e.target.value;
+  });
 
   // действия с расчётом (короткая версия — до этапов, полная — внизу)
   $('#result').addEventListener('click', async (e) => {
@@ -244,17 +391,7 @@ function bindEvents() {
     const copyBtn = e.target.closest('#btnCopyShort, #btnCopyFull');
     const shareBtn = e.target.closest('#btnShareShort, #btnShareFull');
     if (copyBtn) {
-      const full = copyBtn.id === 'btnCopyFull';
-      // сначала пробуем картинкой (ровно в МАКС/WhatsApp), иначе — текстом
-      const okImg = await copyTableAsImage(buildTableLines(lastResult, full));
-      if (okImg) {
-        haptic('medium');
-        toast('✅ Таблица скопирована картинкой — вставьте в чат');
-      } else {
-        const ok = await copyToClipboard(buildCopyText(lastResult, full));
-        haptic(ok ? 'medium' : 'light');
-        toast(ok ? '✅ Скопировано — вставьте в чат' : 'Не удалось скопировать');
-      }
+      await copyCalcImage(copyBtn.id === 'btnCopyFull');
     }
     if (shareBtn) {
       const full = shareBtn.id === 'btnShareFull';
@@ -334,6 +471,7 @@ function onCalculate() {
   if (Object.keys(ratePatch.rates.market).length) patchOverrides(ratePatch);
 
   const expenses = $$('#expenseList [data-exp]').map((el, i) => ({
+    key: (currentExpenseItems[i] || {}).key,
     label: (currentExpenseItems[i] || {}).label || '',
     short: (currentExpenseItems[i] || {}).short || (currentExpenseItems[i] || {}).label || '',
     value: parseFloat(el.value) || 0,
@@ -353,14 +491,17 @@ function onCalculate() {
     bankFeePercent: num('#bankFee'),
     commission: num('#commission'),
     expenses,
+    logisticsCity: ($('#logCity') ? $('#logCity').value : (state.logisticsCity || '')).trim(),
   };
 
   if (!input.carPrice) { toast('Укажите цену авто'); return; }
   if (!state.isElectric && !input.volumeCc) { toast('Укажите объём двигателя'); return; }
   if (!powerVal) { toast('Укажите мощность двигателя'); return; }
 
+  persistInputs();   // запомнить последние введённые поля для этой страны
   const r = calculate(input, cfg);
   renderResult(r);
+  return true;       // расчёт выполнен (используется для авто-копирования по Enter)
 }
 
 /* родительный падеж страны + флаг для подзаголовка */
@@ -371,14 +512,14 @@ const COUNTRY_UP = { jp: 'ЯПОНИИ', kr: 'КОРЕЕ', cn: 'КИТАЮ' };
 function rateDisplay(c, m) {
   if (c === 'jp') return `¥100 = ${m.JPY100_ATB} ₽`;
   if (c === 'cn') return `¥ = ${m.CNY} ₽`;
-  if (c === 'kr') return `${fmtNum(m.KRW_per_USDT)} ₩ = 1 USDT · 1 USDT = ${m.USDT_RUB} ₽`;
+  if (c === 'kr') return `₩1000 = ${m.KRW1000} ₽`;
   return '';
 }
 /* строка курса для копирования (компактная) */
 function rateCopy(c, m) {
   if (c === 'jp') return `¥100=${m.JPY100_ATB}₽`;
   if (c === 'cn') return `¥=${m.CNY}₽`;
-  if (c === 'kr') return `${fmtNum(m.KRW_per_USDT)}₩/USDT · USDT=${m.USDT_RUB}₽`;
+  if (c === 'kr') return `₩1000=${m.KRW1000}₽`;
   return '';
 }
 
@@ -420,6 +561,8 @@ function renderResult(r) {
     <div class="sec-head"><span>Услуги и расходы по РФ</span><span class="sec-sum">${fmt(rfBlock)}</span></div>
     ${expRows}
     <div class="row sub"><span class="k">Комиссия компании</span><span class="v">${fmt(r.commission)}</span></div>
+    ${r.logistics > 0 ? `
+    <div class="sec-head"><span>🚚 Логистика по РФ${r.logisticsCity ? ' — ' + escapeAttr(r.logisticsCity) : ''}</span><span class="sec-sum">${fmt(r.logistics)}</span></div>` : ''}
 
     <div class="row grand"><span class="k">ИТОГО под ключ</span><span class="v">${fmt(r.grandTotal)}</span></div>
 
@@ -477,6 +620,12 @@ function buildTableLines(r, withStages) {
   const rfItems = r.expenses.filter(e => e.value > 0).map(e => ['  ' + (e.short || e.label), money(e.value)]);
   rfItems.push(['  Комиссия', money(r.commission)]);
   sections.push({ head: ['РАСХОДЫ ПО РФ', money(r.expensesSum + r.commission)], items: rfItems });
+
+  // логистика по РФ — отдельным подытогом, город отдельной строкой
+  if (r.logistics > 0) {
+    const logItems = r.logisticsCity ? [['  Город', r.logisticsCity]] : [];
+    sections.push({ head: ['ЛОГИСТИКА ПО РФ', money(r.logistics)], items: logItems });
+  }
 
   // линии-разделители на всю ширину таблицы (копируется картинкой, поэтому длина не мешает)
   const W = 30;
@@ -561,6 +710,7 @@ function buildShareText(r, withStages) {
   t += `\n🇷🇺 Услуги и расходы по РФ: ${money(r.expensesSum + r.commission)}\n`;
   r.expenses.forEach(e => { t += `• ${e.label}: ${money(e.value)}\n`; });
   t += `• Комиссия компании: ${money(r.commission)}\n`;
+  if (r.logistics > 0) t += `\n🚚 Логистика по РФ${r.logisticsCity ? ' (' + r.logisticsCity + ')' : ''}: ${money(r.logistics)}\n`;
   t += `\n💰 ИТОГО ПОД КЛЮЧ: ${money(r.grandTotal)}\n`;
   if (withStages !== false) {
     t += `\nЭтапы оплаты:\n`;
@@ -611,6 +761,23 @@ function renderTableToBlob(lines) {
       cv.toBlob((b) => resolve(b), 'image/png');
     } catch (e) { resolve(null); }
   });
+}
+
+/* --- скопировать текущий расчёт картинкой (с запасным вариантом текстом) ---
+ * full=true — полный расчёт с этапами оплаты. */
+async function copyCalcImage(full) {
+  if (!lastResult) return false;
+  // сначала пробуем картинкой (ровно в МАКС/WhatsApp), иначе — текстом
+  const okImg = await copyTableAsImage(buildTableLines(lastResult, full));
+  if (okImg) {
+    haptic('medium');
+    toast('✅ Таблица скопирована картинкой — вставьте в чат');
+    return true;
+  }
+  const ok = await copyToClipboard(buildCopyText(lastResult, full));
+  haptic(ok ? 'medium' : 'light');
+  toast(ok ? '✅ Скопировано — вставьте в чат' : 'Не удалось скопировать');
+  return ok;
 }
 
 async function copyTableAsImage(lines) {

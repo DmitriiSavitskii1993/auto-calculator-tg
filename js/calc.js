@@ -24,7 +24,7 @@ function priceToRub(country, amountForeign, rates) {
     case 'cn':
       return amountForeign * rates.market.CNY;     // ¥ (CNY) → ₽
     case 'kr':
-      return amountForeign / rates.market.KRW_per_USDT * rates.market.USDT_RUB; // ₩ → USDT → ₽
+      return amountForeign * rates.market.KRW1000 / 1000; // ₩ → ₽ (прямой курс за 1000 вон, платёжный агент)
     default:
       return amountForeign;
   }
@@ -178,15 +178,19 @@ function calculate(input, cfg) {
   const utilCoef = findUtilCoef(cfg, !!input.isElectric, volumeCc, powerKw, powerHp, isOlderThan3);
   const utilFee = cfg.utilBase * utilCoef;
 
-  // --- расходы по РФ ---
-  const expenses = input.expenses || [];
+  // --- расходы по РФ (логистику по РФ выносим отдельной строкой) ---
+  const allExpenses = input.expenses || [];
+  const logisticsItem = allExpenses.find(e => e && e.key === 'rf_logistics');
+  const logistics = logisticsItem ? (Number(logisticsItem.value) || 0) : 0;
+  const logisticsCity = (input.logisticsCity || '').trim();
+  const expenses = allExpenses.filter(e => !(e && e.key === 'rf_logistics')); // услуги без логистики
   const expensesSum = expenses.reduce((s, e) => s + (Number(e.value) || 0), 0);
   const commission = Number(input.commission) || 0;
 
   // суммарные платежи государству (пошлина+акциз+НДС+сбор+утиль)
   const customsTotal = duty.total + utilFee;
-  // все расходы по РФ (таможня + услуги)
-  const rfExpenses = customsTotal + expensesSum;
+  // все расходы по РФ (таможня + услуги + логистика)
+  const rfExpenses = customsTotal + expensesSum + logistics;
   // итого «под ключ»
   const grandTotal = carCostRub + bankFee + rfExpenses + commission;
 
@@ -206,8 +210,10 @@ function calculate(input, cfg) {
     utilFee,
     utilCoef,
     customsTotal,        // всё, что уходит на таможне
-    expenses,
+    expenses,            // услуги по РФ без логистики
     expensesSum,
+    logistics,           // логистика по РФ (вынесена отдельно)
+    logisticsCity,       // город доставки по РФ
     commission,
     rfExpenses,
     grandTotal,
@@ -217,6 +223,7 @@ function calculate(input, cfg) {
       { label: 'Оплата за авто + комиссия банка (инвойс)', short: 'Авто (инвойс)', value: carCostRub + bankFee },
       { label: 'Пошлина / тамож. сбор / утиль (квитанция)', short: 'Пошлина/утиль', value: duty.duty + duty.customsFee + utilFee + duty.excise + duty.vat },
       { label: 'Остальные тамож. платежи и вывоз (физ. карта/счёт)', short: 'Остальное+вывоз', value: expensesSum },
+      { label: 'Логистика по РФ' + (logisticsCity ? ' (' + logisticsCity + ')' : ''), short: 'Логистика РФ', value: logistics },
     ],
   };
 }
