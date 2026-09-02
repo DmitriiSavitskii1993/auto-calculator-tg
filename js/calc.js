@@ -142,6 +142,17 @@ function calcDutyBlock(cfg, p) {
  *  }
  *  cfg = { ...CALC_DATA, rates }  (с применёнными переопределениями)
  * ========================================================================= */
+/* --- Комиссия компании (= депозит) по стоимости авто в рублях и стране.
+ * Возвращает ₽ по ступеням commissionTiers; для санкционной Японии — фикс;
+ * null — если таблицы нет (тогда используется ручное поле). --- */
+function commissionFor(cfg, country, isSanctioned, carPriceRub) {
+  if (country === 'jp' && isSanctioned) return cfg.commissionSanctioned || 150000;
+  const tiers = (cfg.commissionTiers || {})[country];
+  if (!tiers || !tiers.length) return null;
+  for (const t of tiers) { if (carPriceRub <= t.maxRub) return t.rub; }
+  return 'individual'; // свыше верхнего порога (10 млн ₽) — уточняется индивидуально
+}
+
 function calculate(input, cfg) {
   cfg = cfg || {};
   cfg = Object.assign({}, CALC_DATA, cfg);
@@ -179,6 +190,12 @@ function calculate(input, cfg) {
   // --- утильсбор ---
   const utilCoef = findUtilCoef(cfg, !!input.isElectric, volumeCc, powerKw, powerHp, isOlderThan3);
   const utilFee = cfg.utilBase * utilCoef;
+  // порог льготного утиля + «сколько был бы льготный» — для предупреждения в UI («утиль-ловушка»)
+  const _prefCoef = cfg.utilPreferentialCoef || { new: 0.17, old: 0.26 };
+  const _prefHp = cfg.utilPreferentialHp || { ice: 160, ev: 80 };
+  const utilThresholdHp = input.isElectric ? _prefHp.ev : _prefHp.ice;
+  const utilPreferentialApplied = powerHp <= utilThresholdHp;
+  const utilPreferentialFee = cfg.utilBase * (isOlderThan3 ? _prefCoef.old : _prefCoef.new);
 
   // --- расходы по РФ (логистику по РФ выносим отдельной строкой) ---
   const allExpenses = input.expenses || [];
@@ -187,7 +204,13 @@ function calculate(input, cfg) {
   const logisticsCity = (input.logisticsCity || '').trim();
   const expenses = allExpenses.filter(e => !(e && e.key === 'rf_logistics')); // услуги без логистики
   const expensesSum = expenses.reduce((s, e) => s + (Number(e.value) || 0), 0);
-  const commission = Number(input.commission) || 0;
+  // Комиссия компании (= депозит): ступенчато по стоимости авто в рублях (рыночный курс).
+  // Если таблицы нет — используется ручное поле #commission (обратная совместимость).
+  const carPriceRub = priceToRub(input.country, input.carPrice || 0, cfg.rates);
+  const tieredCommission = commissionFor(cfg, input.country, !!input.sanctioned, carPriceRub);
+  const commissionIndividual = tieredCommission === 'individual';   // авто > 10 млн ₽
+  const commission = commissionIndividual ? 0
+    : (tieredCommission != null ? tieredCommission : (Number(input.commission) || 0));
 
   // суммарные платежи государству (пошлина+акциз+НДС+сбор+утиль)
   const customsTotal = duty.total + utilFee;
@@ -211,12 +234,16 @@ function calculate(input, cfg) {
     customsFee: duty.customsFee,
     utilFee,
     utilCoef,
+    utilThresholdHp,           // порог льготного утиля, л.с. (160 ДВС / 80 EV)
+    utilPreferentialApplied,   // попал ли под льготу (мощность ≤ порога)
+    utilPreferentialFee,       // сколько был бы утиль при льготе (для показа переплаты)
     customsTotal,        // всё, что уходит на таможне
     expenses,            // услуги по РФ без логистики
     expensesSum,
     logistics,           // логистика по РФ (вынесена отдельно)
     logisticsCity,       // город доставки по РФ
     commission,
+    commissionIndividual,   // true, если авто > 10 млн ₽ (комиссия «по запросу»)
     rfExpenses,
     grandTotal,
     // этапы оплаты

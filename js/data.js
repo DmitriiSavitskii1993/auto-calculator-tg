@@ -206,6 +206,34 @@ const CALC_DATA = {
     { id:'>3', label:'Электрокар старше 3 лет' },
   ],
 
+  /* --- Комиссия компании (= депозит) по стоимости АВТО в рублях (рыночный курс).
+   *     Япония «санкционное» — фикс commissionSanctioned. «до X» = стоимость ≤ maxRub.
+   *     Свыше верхнего порога (10 млн) — комиссия «уточняется индивидуально» (см. calc.js). --- */
+  commissionTiers: {
+    jp: [
+      { maxRub: 2000000,  rub: 50000 },
+      { maxRub: 3000000,  rub: 75000 },
+      { maxRub: 4000000,  rub: 100000 },
+      { maxRub: 6000000,  rub: 150000 },
+      { maxRub: 10000000, rub: 250000 },
+    ],
+    kr: [
+      { maxRub: 2000000,  rub: 50000 },
+      { maxRub: 3000000,  rub: 100000 },
+      { maxRub: 4000000,  rub: 150000 },
+      { maxRub: 6000000,  rub: 250000 },
+      { maxRub: 10000000, rub: 400000 },
+    ],
+    cn: [
+      { maxRub: 2000000,  rub: 80000 },
+      { maxRub: 3000000,  rub: 130000 },
+      { maxRub: 4000000,  rub: 180000 },
+      { maxRub: 6000000,  rub: 250000 },
+      { maxRub: 10000000, rub: 400000 },
+    ],
+  },
+  commissionSanctioned: 150000,  // Япония «санкционное» — фикс по всем авто
+
   /* --- Пресеты расходов по РФ для каждой страны (₽), правятся в настройках --- */
   expensePresets: {
     jp: {
@@ -239,7 +267,7 @@ const CALC_DATA = {
     kr: {
       label: 'Корея 🇰🇷',
       currency: 'KRW',
-      commission: 100000,
+      commission: 50000,  // дефолт = 1-я ступень (≤2 млн); фактическая берётся из commissionTiers по цене
       bankFeePercent: 0,   // Корея — без комиссии банка за перевод
 
       items: [
@@ -256,7 +284,7 @@ const CALC_DATA = {
     cn: {
       label: 'Китай 🇨🇳',
       currency: 'CNY',
-      commission: 100000,
+      commission: 80000,  // дефолт = 1-я ступень (≤2 млн); фактическая берётся из commissionTiers по цене
       bankFeePercent: 2.5,       // % банка за перевод средств за границу
       fixedDeliveryForeign: 15000, // доставка+транзит всегда 15 000 ¥ (CNY)
 

@@ -70,6 +70,9 @@ function checkInitData(initData) {
     const secret = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
     const calcHash = crypto.createHmac('sha256', secret).update(dataCheckString).digest('hex');
     if (calcHash !== hash) return null;
+    // Свежесть: отклоняем initData старше суток (анти-replay, если строка утечёт в логи/HAR/прокси).
+    const authDate = parseInt(params.get('auth_date') || '0', 10);
+    if (!authDate || (Date.now() / 1000 - authDate) > 86400) return null;
     return JSON.parse(params.get('user') || 'null');
   } catch (e) { return null; }
 }
