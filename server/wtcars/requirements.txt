@@ -1,0 +1,22 @@
+# Отдельный venv, а не общий с PublioSMM: три живых сервиса делят один
+# venv, и подмешивать туда anthropic + Pillow ради нашей задачи — лишний
+# риск для прода. Версии совпадают с тем, что уже проверено на сервере.
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+SQLAlchemy==2.0.48
+# нужен для async-режима SQLAlchemy; ставим явно — на некоторых версиях
+# Python он не подтягивается автоматически, и падение видно только в рантайме
+greenlet>=3.0
+alembic==1.18.5
+asyncpg==0.31.0
+aiosqlite==0.22.1
+pydantic==2.12.5
+python-dotenv==1.0.1
+python-multipart==0.0.20
+PyJWT==2.10.1
+httpx==0.28.1
+Pillow==11.3.0
+# >=1.2.0: используем client.beta.messages.parse (structured output + betas +
+# fallbacks одновременно) и fallbacks="default" — сверено интроспекцией
+# именно этой версии, более старые 0.x/1.0 могут не иметь этих полей.
+anthropic>=1.2.0,<2

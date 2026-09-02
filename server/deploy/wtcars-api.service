@@ -1,0 +1,27 @@
+[Unit]
+Description=WT Cars API (база авто для калькулятора)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/wtcars
+ExecStart=/root/wtcars/venv/bin/uvicorn main:app --host 127.0.0.1 --port 8082 --workers 1
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# На сервере 968 МБ RAM и три живых сервиса PublioSMM. Потолок нужен, чтобы
+# при утечке или тяжёлой картинке ядро убивало ИМЕННО нас, а не боевого бота.
+MemoryMax=320M
+MemoryHigh=260M
+
+# glibc по умолчанию заводит по arena на поток — на маленькой машине это
+# десятки лишних мегабайт RSS.
+Environment=MALLOC_ARENA_MAX=2
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

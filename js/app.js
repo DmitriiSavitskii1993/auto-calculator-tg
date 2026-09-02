@@ -15,6 +15,7 @@ const state = {
   isNotDvfo: false,     // не из ДВФО → нужна врем. регистрация (+15 000 ₽)
   powerUnit: 'hp',
   logisticsCity: '',    // город доставки по РФ (к строке «Логистика по РФ»)
+  mode: 'client',       // 'client' — как раньше, 'base' — наполняем базу авто
 };
 
 /* текущий пресет расходов (с учётом санкций для Японии) */
@@ -41,6 +42,7 @@ const fmtNum = (n) => Math.round(n).toLocaleString('ru-RU');
 
 let cfg = buildConfig();
 let lastResult = null;
+let lastInput = null;          // сырой input последнего расчёта (уходит в базу)
 let currentExpenseItems = [];
 
 /* --- экранирование значения для HTML-атрибута (город вводится вручную) --- */
@@ -135,6 +137,7 @@ function init() {
   setupMainButton();
   setupKeyboardDone();
   setupEnterToCalc();
+  if (typeof initBase === 'function') initBase();  // режим «База» и её экран
   hydrateFromCloud();   // подтянуть сохранённые курсы/настройки/поля из облака Telegram
 }
 
@@ -186,11 +189,51 @@ async function hydrateFromCloud() {
   } catch (e) {}
 }
 
+/* ===================== ПЕРЕКЛЮЧЕНИЕ ЭКРАНОВ =====================
+ * Экраны — сиблинги, переключаются классом .hidden. Единая точка, чтобы
+ * добавление нового экрана не требовало править вызовы по всему файлу. */
+const SCREENS = ['screenCalc', 'screenSettings', 'screenBase', 'screenExtract', 'screenImport'];
+
+function showScreen(id) {
+  SCREENS.forEach((s) => {
+    const el = $('#' + s);
+    if (el) el.classList.toggle('hidden', s !== id);
+  });
+  // переключатель режима имеет смысл только на экране расчёта
+  const tabs = $('#modeTabs');
+  if (tabs) tabs.classList.toggle('hidden', id !== 'screenCalc');
+  setMainButtonFor(id);
+}
+
+/* MainButton один на всё приложение. Без offClick обработчики копятся, и одно
+ * нажатие срабатывает сразу за несколько экранов — поэтому держим текущий. */
+let mbHandler = null;
+
+function setMainButton(text, handler) {
+  if (!inTelegram) return;
+  if (mbHandler) { try { tg.MainButton.offClick(mbHandler); } catch (e) {} }
+  mbHandler = handler || null;
+  if (!handler) { tg.MainButton.hide(); return; }
+  tg.MainButton.setText(text);
+  tg.MainButton.onClick(handler);
+  tg.MainButton.show();
+}
+
+function setMainButtonFor(screenId) {
+  if (screenId === 'screenCalc') {
+    setMainButton(
+      state.mode === 'base' ? 'Рассчитать и сохранить' : 'Рассчитать стоимость',
+      onCalculate,
+    );
+  } else {
+    setMainButton(null, null);
+  }
+}
+
 /* --- кнопка «Рассчитать» --- */
 function setupMainButton() {
   if (inTelegram) {
-    tg.MainButton.setText('Рассчитать стоимость').show();
-    tg.MainButton.onClick(onCalculate);
+    setMainButtonFor('screenCalc');
   } else {
     // в браузере — обычная кнопка
     const btn = document.createElement('button');
@@ -309,7 +352,12 @@ function renderExpenses() {
     }
     return row;
   }).join('');
-  $('#commission').value = preset.commission;
+  const commEl = $('#commission');
+  if (commEl) {
+    commEl.value = preset.commission;      // дефолт (1-я ступень); фактическая — по цене авто при расчёте
+    commEl.readOnly = true;                // комиссия ступенчатая (commissionTiers), редактировать нельзя
+    commEl.title = 'Считается автоматически по стоимости авто (₽)';
+  }
   $('#bankFee').value = String(preset.bankFeePercent != null ? preset.bankFeePercent : 0).replace('.', ',');
 }
 
@@ -503,6 +551,7 @@ function onCalculate() {
   if (!powerVal) { toast('Укажите мощность двигателя'); return; }
 
   persistInputs();   // запомнить последние введённые поля для этой страны
+  lastInput = input; // сохраняем сырой input — он уходит в базу вместе с результатом
   const r = calculate(input, cfg);
   renderResult(r);
   return true;       // расчёт выполнен (используется для авто-копирования по Enter)
@@ -544,6 +593,18 @@ function renderResult(r) {
   const stageRows = r.stages.filter(s => s.value > 0).map((s, i) =>
     `<div class="row"><span class="k">${i + 1}) ${s.label}</span><span class="v">${fmt(s.value)}</span></div>`).join('');
 
+  // --- «утиль-ловушка»: предупреждение о пороге мощности (главный водораздел стоимости в 2026) ---
+  const powerHpR = Math.round(r.input.powerHp || 0);
+  let utilFlag = '';
+  if (r.utilThresholdHp) {
+    if (r.utilPreferentialApplied) {
+      utilFlag = `<div class="row sub" style="margin:4px 0 8px;padding:8px 10px;border-radius:8px;border-left:3px solid #27ae60;background:rgba(39,174,96,.10);font-size:12.5px;line-height:1.4">✅ <b>${powerHpR} л.с.</b> — в пределах льготного порога ${r.utilThresholdHp} л.с. Утильсбор льготный: <b style="color:#27ae60">${fmt(r.utilFee)}</b>.</div>`;
+    } else {
+      const overpay = Math.max(0, r.utilFee - r.utilPreferentialFee);
+      utilFlag = `<div class="row sub" style="margin:4px 0 8px;padding:8px 10px;border-radius:8px;border-left:3px solid #e74c3c;background:rgba(231,76,60,.10);font-size:12.5px;line-height:1.4">⚠️ <b>${powerHpR} л.с.</b> — выше льготного порога <b>${r.utilThresholdHp} л.с.</b> Утиль ${fmt(r.utilFee)} вместо льготных ${fmt(r.utilPreferentialFee)}. Переплата по утилю ≈ <b style="color:#e74c3c">${fmt(overpay)}</b>. Авто ≤${r.utilThresholdHp} л.с. попадает под льготу.</div>`;
+    }
+  }
+
   $('#result').innerHTML = `
     <div class="total">
       <div class="label">ИТОГО «под ключ»</div>
@@ -561,10 +622,12 @@ function renderResult(r) {
     <div class="row sub"><span class="k">Пошлина и таможенный сбор <span class="method-tag">(${r.dutyMethod})</span></span><span class="v">${fmt(r.duty + r.customsFee)}</span></div>
     ${evRows}
     <div class="row sub"><span class="k">Утильсбор (коэф. ${r.utilCoef})</span><span class="v">${fmt(r.utilFee)}</span></div>
+    ${utilFlag}
 
     <div class="sec-head"><span>Услуги и расходы по РФ</span><span class="sec-sum">${fmt(rfBlock)}</span></div>
     ${expRows}
-    <div class="row sub"><span class="k">Комиссия компании</span><span class="v">${fmt(r.commission)}</span></div>
+    <div class="row sub"><span class="k">Комиссия компании</span><span class="v">${r.commissionIndividual ? 'по запросу' : fmt(r.commission)}</span></div>
+    ${r.commissionIndividual ? `<div class="row sub" style="margin:4px 0 8px;padding:8px 10px;border-radius:8px;border-left:3px solid #e67e22;background:rgba(230,126,34,.10);font-size:12.5px;line-height:1.4">ℹ️ Авто дороже 10 млн ₽ — <b>вознаграждение уточняется индивидуально</b>. Итог ниже — без вознаграждения.</div>` : ''}
     ${r.logistics > 0 ? `
     <div class="sec-head"><span>🚚 Логистика по РФ${r.logisticsCity ? ' — ' + escapeAttr(r.logisticsCity) : ''}</span><span class="sec-sum">${fmt(r.logistics)}</span></div>` : ''}
 
@@ -584,8 +647,14 @@ function renderResult(r) {
       <button class="copy-btn" id="btnCopyFull">📋 Копировать</button>
       <button class="copy-btn send-btn" id="btnShareFull">📤 В чат</button>
     </div>
+
+    <div id="baseSaveSlot"></div>
   `;
   lastResult = r;
+  // в режиме «База» base.js дорисует сюда кнопку сохранения
+  if (typeof onResultRendered === 'function') onResultRendered(r);
+  // синхронизируем поле комиссии с фактически применённой ступенью (по цене авто)
+  const commEl = $('#commission'); if (commEl) commEl.value = r.commissionIndividual ? 'по запросу' : r.commission;
   $('#result').classList.remove('hidden');
   $('#result').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -622,7 +691,7 @@ function buildTableLines(r, withStages) {
   sections.push({ head: ['ТАМОЖНЯ', money(r.customsTotal)], items: customsItems });
 
   const rfItems = r.expenses.filter(e => e.value > 0).map(e => ['  ' + (e.short || e.label), money(e.value)]);
-  rfItems.push(['  Комиссия', money(r.commission)]);
+  rfItems.push(['  Комиссия', r.commissionIndividual ? 'по запросу' : money(r.commission)]);
   sections.push({ head: ['РАСХОДЫ ПО РФ', money(r.expensesSum + r.commission)], items: rfItems });
 
   // логистика по РФ — отдельным подытогом, город отдельной строкой
@@ -713,7 +782,7 @@ function buildShareText(r, withStages) {
   t += `• Утильсбор: ${money(r.utilFee)}\n`;
   t += `\n🇷🇺 Услуги и расходы по РФ: ${money(r.expensesSum + r.commission)}\n`;
   r.expenses.forEach(e => { t += `• ${e.label}: ${money(e.value)}\n`; });
-  t += `• Комиссия компании: ${money(r.commission)}\n`;
+  t += `• Комиссия компании: ${r.commissionIndividual ? 'по запросу (авто > 10 млн ₽)' : money(r.commission)}\n`;
   if (r.logistics > 0) t += `\n🚚 Логистика по РФ${r.logisticsCity ? ' (' + r.logisticsCity + ')' : ''}: ${money(r.logistics)}\n`;
   t += `\n💰 ИТОГО ПОД КЛЮЧ: ${money(r.grandTotal)}\n`;
   if (withStages !== false) {
@@ -820,8 +889,8 @@ async function copyToClipboard(text) {
 function hideResult() { $('#result').classList.add('hidden'); }
 
 /* ============================ НАСТРОЙКИ ============================ */
-function openSettings() { fillSettings(); $('#screenCalc').classList.add('hidden'); $('#screenSettings').classList.remove('hidden'); if (inTelegram) tg.MainButton.hide(); }
-function closeSettings() { $('#screenSettings').classList.add('hidden'); $('#screenCalc').classList.remove('hidden'); if (inTelegram) tg.MainButton.show(); }
+function openSettings() { fillSettings(); showScreen('screenSettings'); }
+function closeSettings() { showScreen('screenCalc'); }
 
 function fillSettings() {
   $$('[data-rate]').forEach(el => {

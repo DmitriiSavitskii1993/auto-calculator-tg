@@ -1,0 +1,675 @@
+[
+  {
+    "name": "JP 150 л.с. — под льготу",
+    "vehicle": {
+      "make": "Toyota",
+      "model": "Corolla Fielder",
+      "year": 2021,
+      "month": 6,
+      "mileage_km": 48000,
+      "body": "wagon",
+      "drive": "FWD",
+      "transmission": "CVT",
+      "fuel": "petrol",
+      "auction_grade": "4.5",
+      "lot_number": "30215",
+      "auction_name": "USS Tokyo",
+      "color": "белый",
+      "price_foreign": 1200000,
+      "currency": "JPY"
+    },
+    "calc_input": {
+      "country": "jp",
+      "isElectric": false,
+      "sanctioned": false,
+      "age": "3-5",
+      "volumeCc": 1500,
+      "powerHp": 150,
+      "powerKw": null,
+      "carPrice": 1200000,
+      "deliveryForeign": 126900,
+      "bankFeePercent": 1.5,
+      "commission": 0,
+      "expenses": [
+        {
+          "key": "broker",
+          "label": "Услуги брокера / СБКТС / ЭПТС / Лаборатория",
+          "short": "Брокер/СБКТС/ЭПТС",
+          "value": 50000
+        },
+        {
+          "key": "tech",
+          "label": "Справка на техническое средство",
+          "short": "Справка ТС",
+          "value": 550
+        },
+        {
+          "key": "svh",
+          "label": "СВХ (хранение и ПРР)",
+          "short": "СВХ",
+          "value": 3000
+        },
+        {
+          "key": "export",
+          "label": "Вывоз в ТК",
+          "short": "Вывоз в ТК",
+          "value": 5000
+        },
+        {
+          "key": "rf_logistics",
+          "label": "Логистика по РФ",
+          "short": "Логистика РФ",
+          "value": 0
+        }
+      ],
+      "logisticsCity": "Новосибирск"
+    },
+    "calc_result": {
+      "input": {
+        "country": "jp",
+        "isElectric": false,
+        "sanctioned": false,
+        "age": "3-5",
+        "volumeCc": 1500,
+        "powerHp": 150,
+        "powerKw": 110.325,
+        "carPrice": 1200000,
+        "deliveryForeign": 126900,
+        "bankFeePercent": 1.5,
+        "commission": 0,
+        "expenses": [
+          {
+            "key": "broker",
+            "label": "Услуги брокера / СБКТС / ЭПТС / Лаборатория",
+            "short": "Брокер/СБКТС/ЭПТС",
+            "value": 50000
+          },
+          {
+            "key": "tech",
+            "label": "Справка на техническое средство",
+            "short": "Справка ТС",
+            "value": 550
+          },
+          {
+            "key": "svh",
+            "label": "СВХ (хранение и ПРР)",
+            "short": "СВХ",
+            "value": 3000
+          },
+          {
+            "key": "export",
+            "label": "Вывоз в ТК",
+            "short": "Вывоз в ТК",
+            "value": 5000
+          },
+          {
+            "key": "rf_logistics",
+            "label": "Логистика по РФ",
+            "short": "Логистика РФ",
+            "value": 0
+          }
+        ],
+        "logisticsCity": "Новосибирск"
+      },
+      "foreignTotal": 1326900,
+      "carCostRub": 659469.3,
+      "bankFeePercent": 1.5,
+      "bankFee": 9892.0395,
+      "customsValueRub": 609445.1699999999,
+      "customsValueEur": 7123.015077138849,
+      "duty": 218178,
+      "dutyMethod": "1.7 €/см³",
+      "excise": 0,
+      "vat": 0,
+      "customsFee": 4924,
+      "utilFee": 5200,
+      "utilCoef": 0.26,
+      "utilThresholdHp": 160,
+      "utilPreferentialApplied": true,
+      "utilPreferentialFee": 5200,
+      "customsTotal": 228302,
+      "expenses": [
+        {
+          "key": "broker",
+          "label": "Услуги брокера / СБКТС / ЭПТС / Лаборатория",
+          "short": "Брокер/СБКТС/ЭПТС",
+          "value": 50000
+        },
+        {
+          "key": "tech",
+          "label": "Справка на техническое средство",
+          "short": "Справка ТС",
+          "value": 550
+        },
+        {
+          "key": "svh",
+          "label": "СВХ (хранение и ПРР)",
+          "short": "СВХ",
+          "value": 3000
+        },
+        {
+          "key": "export",
+          "label": "Вывоз в ТК",
+          "short": "Вывоз в ТК",
+          "value": 5000
+        }
+      ],
+      "expensesSum": 58550,
+      "logistics": 0,
+      "logisticsCity": "Новосибирск",
+      "commission": 50000,
+      "commissionIndividual": false,
+      "rfExpenses": 286852,
+      "grandTotal": 1006213.3395,
+      "stages": [
+        {
+          "label": "Депозит (р/с)",
+          "short": "Депозит",
+          "value": 50000
+        },
+        {
+          "label": "Оплата за авто + комиссия банка (инвойс)",
+          "short": "Авто (инвойс)",
+          "value": 669361.3395
+        },
+        {
+          "label": "Пошлина / тамож. сбор / утиль (квитанция)",
+          "short": "Пошлина/утиль",
+          "value": 228302
+        },
+        {
+          "label": "Остальные тамож. платежи и вывоз (физ. карта/счёт)",
+          "short": "Остальное+вывоз",
+          "value": 58550
+        },
+        {
+          "label": "Логистика по РФ (Новосибирск)",
+          "short": "Логистика РФ",
+          "value": 0
+        }
+      ]
+    },
+    "rates": {
+      "cbr": {
+        "USD": 73.47,
+        "EUR": 85.56,
+        "JPY": 0.4593,
+        "KRW": 0.04806,
+        "CNY": 10.85
+      },
+      "market": {
+        "USD": 79.2,
+        "JPY100_ATB": 49.7,
+        "CNY": 10.93,
+        "KRW1000": 53.78
+      },
+      "cbr_date": "2026-08-28T11:30:00+03:00",
+      "calc_version": "local-test"
+    }
+  },
+  {
+    "name": "JP 200 л.с. — утиль-ловушка",
+    "vehicle": {
+      "make": "Toyota",
+      "model": "Harrier",
+      "year": 2020,
+      "month": 3,
+      "mileage_km": 62000,
+      "body": "suv",
+      "drive": "AWD",
+      "transmission": "AT",
+      "fuel": "petrol",
+      "auction_grade": "4",
+      "lot_number": "44120",
+      "price_foreign": 2600000,
+      "currency": "JPY"
+    },
+    "calc_input": {
+      "country": "jp",
+      "isElectric": false,
+      "sanctioned": false,
+      "age": "5-7",
+      "volumeCc": 2500,
+      "powerHp": 200,
+      "powerKw": null,
+      "carPrice": 2600000,
+      "deliveryForeign": 126900,
+      "bankFeePercent": 1.5,
+      "commission": 0,
+      "expenses": [
+        {
+          "key": "broker",
+          "label": "Услуги брокера / СБКТС / ЭПТС / Лаборатория",
+          "short": "Брокер/СБКТС/ЭПТС",
+          "value": 50000
+        },
+        {
+          "key": "tech",
+          "label": "Справка на техническое средство",
+          "short": "Справка ТС",
+          "value": 550
+        },
+        {
+          "key": "svh",
+          "label": "СВХ (хранение и ПРР)",
+          "short": "СВХ",
+          "value": 3000
+        },
+        {
+          "key": "export",
+          "label": "Вывоз в ТК",
+          "short": "Вывоз в ТК",
+          "value": 5000
+        },
+        {
+          "key": "rf_logistics",
+          "label": "Логистика по РФ",
+          "short": "Логистика РФ",
+          "value": 0
+        }
+      ],
+      "logisticsCity": "Москва"
+    },
+    "calc_result": {
+      "input": {
+        "country": "jp",
+        "isElectric": false,
+        "sanctioned": false,
+        "age": "5-7",
+        "volumeCc": 2500,
+        "powerHp": 200,
+        "powerKw": 147.10000000000002,
+        "carPrice": 2600000,
+        "deliveryForeign": 126900,
+        "bankFeePercent": 1.5,
+        "commission": 0,
+        "expenses": [
+          {
+            "key": "broker",
+            "label": "Услуги брокера / СБКТС / ЭПТС / Лаборатория",
+            "short": "Брокер/СБКТС/ЭПТС",
+            "value": 50000
+          },
+          {
+            "key": "tech",
+            "label": "Справка на техническое средство",
+            "short": "Справка ТС",
+            "value": 550
+          },
+          {
+            "key": "svh",
+            "label": "СВХ (хранение и ПРР)",
+            "short": "СВХ",
+            "value": 3000
+          },
+          {
+            "key": "export",
+            "label": "Вывоз в ТК",
+            "short": "Вывоз в ТК",
+            "value": 5000
+          },
+          {
+            "key": "rf_logistics",
+            "label": "Логистика по РФ",
+            "short": "Логистика РФ",
+            "value": 0
+          }
+        ],
+        "logisticsCity": "Москва"
+      },
+      "foreignTotal": 2726900,
+      "carCostRub": 1355269.3,
+      "bankFeePercent": 1.5,
+      "bankFee": 20329.039500000003,
+      "customsValueRub": 1252465.17,
+      "customsValueEur": 14638.442847124823,
+      "duty": 1069500,
+      "dutyMethod": "5 €/см³",
+      "excise": 0,
+      "vat": 0,
+      "customsFee": 13541,
+      "utilFee": 3501600.0000000005,
+      "utilCoef": 175.08,
+      "utilThresholdHp": 160,
+      "utilPreferentialApplied": false,
+      "utilPreferentialFee": 5200,
+      "customsTotal": 4584641,
+      "expenses": [
+        {
+          "key": "broker",
+          "label": "Услуги брокера / СБКТС / ЭПТС / Лаборатория",
+          "short": "Брокер/СБКТС/ЭПТС",
+          "value": 50000
+        },
+        {
+          "key": "tech",
+          "label": "Справка на техническое средство",
+          "short": "Справка ТС",
+          "value": 550
+        },
+        {
+          "key": "svh",
+          "label": "СВХ (хранение и ПРР)",
+          "short": "СВХ",
+          "value": 3000
+        },
+        {
+          "key": "export",
+          "label": "Вывоз в ТК",
+          "short": "Вывоз в ТК",
+          "value": 5000
+        }
+      ],
+      "expensesSum": 58550,
+      "logistics": 0,
+      "logisticsCity": "Москва",
+      "commission": 50000,
+      "commissionIndividual": false,
+      "rfExpenses": 4643191,
+      "grandTotal": 6068789.3395,
+      "stages": [
+        {
+          "label": "Депозит (р/с)",
+          "short": "Депозит",
+          "value": 50000
+        },
+        {
+          "label": "Оплата за авто + комиссия банка (инвойс)",
+          "short": "Авто (инвойс)",
+          "value": 1375598.3395
+        },
+        {
+          "label": "Пошлина / тамож. сбор / утиль (квитанция)",
+          "short": "Пошлина/утиль",
+          "value": 4584641
+        },
+        {
+          "label": "Остальные тамож. платежи и вывоз (физ. карта/счёт)",
+          "short": "Остальное+вывоз",
+          "value": 58550
+        },
+        {
+          "label": "Логистика по РФ (Москва)",
+          "short": "Логистика РФ",
+          "value": 0
+        }
+      ]
+    },
+    "rates": {
+      "cbr": {
+        "USD": 73.47,
+        "EUR": 85.56,
+        "JPY": 0.4593,
+        "KRW": 0.04806,
+        "CNY": 10.85
+      },
+      "market": {
+        "USD": 79.2,
+        "JPY100_ATB": 49.7,
+        "CNY": 10.93,
+        "KRW1000": 53.78
+      },
+      "cbr_date": "2026-08-28T11:30:00+03:00",
+      "calc_version": "local-test"
+    }
+  },
+  {
+    "name": "KR электрокар",
+    "vehicle": {
+      "make": "Hyundai",
+      "model": "Ioniq 5",
+      "year": 2023,
+      "month": 1,
+      "mileage_km": 21000,
+      "body": "suv",
+      "drive": "AWD",
+      "transmission": "AT",
+      "fuel": "ev",
+      "lot_number": "KR-9981",
+      "price_foreign": 38000000,
+      "currency": "KRW"
+    },
+    "calc_input": {
+      "country": "kr",
+      "isElectric": true,
+      "sanctioned": false,
+      "age": "<3",
+      "volumeCc": 0,
+      "powerHp": null,
+      "powerKw": 160,
+      "carPrice": 38000000,
+      "deliveryForeign": 1500000,
+      "bankFeePercent": 0,
+      "commission": 0,
+      "expenses": [
+        {
+          "key": "svh",
+          "label": "СВХ ПРР",
+          "short": "СВХ ПРР",
+          "value": 32000
+        },
+        {
+          "key": "expertise",
+          "label": "Экспертиза ТС / осмотр на складе",
+          "short": "Экспертиза/осмотр",
+          "value": 4000
+        },
+        {
+          "key": "reg",
+          "label": "Справка о врем. регистрации",
+          "short": "Справка врем.рег.",
+          "value": 5000
+        },
+        {
+          "key": "fast",
+          "label": "Быстрый выпуск (минимум платного СВХ)",
+          "short": "Быстрый выпуск",
+          "value": 5000
+        },
+        {
+          "key": "lab",
+          "label": "ИЛ / СБКТС / ЭПТС",
+          "short": "ИЛ/СБКТС/ЭПТС",
+          "value": 25000
+        },
+        {
+          "key": "broker",
+          "label": "Услуги брокера / вывоз с СВХ / стоянка",
+          "short": "Брокер/вывоз",
+          "value": 22000
+        },
+        {
+          "key": "export",
+          "label": "Вывоз в ТК",
+          "short": "Вывоз в ТК",
+          "value": 5000
+        },
+        {
+          "key": "rf_logistics",
+          "label": "Логистика по РФ",
+          "short": "Логистика РФ",
+          "value": 0
+        }
+      ],
+      "logisticsCity": "Владивосток"
+    },
+    "calc_result": {
+      "input": {
+        "country": "kr",
+        "isElectric": true,
+        "sanctioned": false,
+        "age": "<3",
+        "volumeCc": 0,
+        "powerHp": 217.53908905506458,
+        "powerKw": 160,
+        "carPrice": 38000000,
+        "deliveryForeign": 1500000,
+        "bankFeePercent": 0,
+        "commission": 0,
+        "expenses": [
+          {
+            "key": "svh",
+            "label": "СВХ ПРР",
+            "short": "СВХ ПРР",
+            "value": 32000
+          },
+          {
+            "key": "expertise",
+            "label": "Экспертиза ТС / осмотр на складе",
+            "short": "Экспертиза/осмотр",
+            "value": 4000
+          },
+          {
+            "key": "reg",
+            "label": "Справка о врем. регистрации",
+            "short": "Справка врем.рег.",
+            "value": 5000
+          },
+          {
+            "key": "fast",
+            "label": "Быстрый выпуск (минимум платного СВХ)",
+            "short": "Быстрый выпуск",
+            "value": 5000
+          },
+          {
+            "key": "lab",
+            "label": "ИЛ / СБКТС / ЭПТС",
+            "short": "ИЛ/СБКТС/ЭПТС",
+            "value": 25000
+          },
+          {
+            "key": "broker",
+            "label": "Услуги брокера / вывоз с СВХ / стоянка",
+            "short": "Брокер/вывоз",
+            "value": 22000
+          },
+          {
+            "key": "export",
+            "label": "Вывоз в ТК",
+            "short": "Вывоз в ТК",
+            "value": 5000
+          },
+          {
+            "key": "rf_logistics",
+            "label": "Логистика по РФ",
+            "short": "Логистика РФ",
+            "value": 0
+          }
+        ],
+        "logisticsCity": "Владивосток"
+      },
+      "foreignTotal": 39500000,
+      "carCostRub": 2124310,
+      "bankFeePercent": 0,
+      "bankFee": 0,
+      "customsValueRub": 1898370,
+      "customsValueEur": 22187.58765778401,
+      "duty": 284755.5,
+      "dutyMethod": "Электрокар: пошлина 15% + акциз + НДС 22%",
+      "excise": 214186.6666666667,
+      "vat": 527408.6766666666,
+      "customsFee": 13541,
+      "utilFee": 2193600,
+      "utilCoef": 109.68,
+      "utilThresholdHp": 80,
+      "utilPreferentialApplied": false,
+      "utilPreferentialFee": 3400.0000000000005,
+      "customsTotal": 3233491.8433333333,
+      "expenses": [
+        {
+          "key": "svh",
+          "label": "СВХ ПРР",
+          "short": "СВХ ПРР",
+          "value": 32000
+        },
+        {
+          "key": "expertise",
+          "label": "Экспертиза ТС / осмотр на складе",
+          "short": "Экспертиза/осмотр",
+          "value": 4000
+        },
+        {
+          "key": "reg",
+          "label": "Справка о врем. регистрации",
+          "short": "Справка врем.рег.",
+          "value": 5000
+        },
+        {
+          "key": "fast",
+          "label": "Быстрый выпуск (минимум платного СВХ)",
+          "short": "Быстрый выпуск",
+          "value": 5000
+        },
+        {
+          "key": "lab",
+          "label": "ИЛ / СБКТС / ЭПТС",
+          "short": "ИЛ/СБКТС/ЭПТС",
+          "value": 25000
+        },
+        {
+          "key": "broker",
+          "label": "Услуги брокера / вывоз с СВХ / стоянка",
+          "short": "Брокер/вывоз",
+          "value": 22000
+        },
+        {
+          "key": "export",
+          "label": "Вывоз в ТК",
+          "short": "Вывоз в ТК",
+          "value": 5000
+        }
+      ],
+      "expensesSum": 98000,
+      "logistics": 0,
+      "logisticsCity": "Владивосток",
+      "commission": 100000,
+      "commissionIndividual": false,
+      "rfExpenses": 3331491.8433333333,
+      "grandTotal": 5555801.843333334,
+      "stages": [
+        {
+          "label": "Депозит (р/с)",
+          "short": "Депозит",
+          "value": 100000
+        },
+        {
+          "label": "Оплата за авто + комиссия банка (инвойс)",
+          "short": "Авто (инвойс)",
+          "value": 2124310
+        },
+        {
+          "label": "Пошлина / тамож. сбор / утиль (квитанция)",
+          "short": "Пошлина/утиль",
+          "value": 3233491.8433333333
+        },
+        {
+          "label": "Остальные тамож. платежи и вывоз (физ. карта/счёт)",
+          "short": "Остальное+вывоз",
+          "value": 98000
+        },
+        {
+          "label": "Логистика по РФ (Владивосток)",
+          "short": "Логистика РФ",
+          "value": 0
+        }
+      ]
+    },
+    "rates": {
+      "cbr": {
+        "USD": 73.47,
+        "EUR": 85.56,
+        "JPY": 0.4593,
+        "KRW": 0.04806,
+        "CNY": 10.85
+      },
+      "market": {
+        "USD": 79.2,
+        "JPY100_ATB": 49.7,
+        "CNY": 10.93,
+        "KRW1000": 53.78
+      },
+      "cbr_date": "2026-08-28T11:30:00+03:00",
+      "calc_version": "local-test"
+    }
+  }
+]

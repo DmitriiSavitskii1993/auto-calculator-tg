@@ -17,6 +17,12 @@
     </header>
     <div id="cbrStatus" class="cbr-status">Курсы ЦБ: загрузка…</div>
 
+    <!-- Режим работы: обычный расчёт для клиента или наполнение базы -->
+    <div class="segmented" id="modeTabs">
+      <button class="seg active" data-mode="client">👤 Клиент</button>
+      <button class="seg" data-mode="base">🗄 База</button>
+    </div>
+
     <!-- Основной экран -->
     <main id="screenCalc" class="screen">
 
@@ -39,6 +45,80 @@
         <button class="seg" data-country="kr">🇰🇷 Корея</button>
         <button class="seg" data-country="cn">🇨🇳 Китай</button>
       </div>
+
+      <!-- Характеристики авто для базы (виден только в режиме «База») -->
+      <section class="card hidden" id="cardVehicle">
+        <div class="card-head">
+          <span>🚘 Что за машина</span>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button id="btnOpenExtract" class="mini-btn" type="button">📷 Скрин</button>
+            <button id="btnOpenImport" class="mini-btn" type="button">📊 Таблица</button>
+            <button id="btnOpenBase" class="mini-btn" type="button">🗄 База</button>
+          </div>
+        </div>
+        <div class="grid2">
+          <label>Марка <input type="text" id="make" placeholder="Toyota"></label>
+          <label>Модель <input type="text" id="model" placeholder="Corolla Fielder"></label>
+          <label>Комплектация <input type="text" id="trimName" placeholder="Hybrid G"></label>
+          <label>Год <input type="number" id="year" inputmode="numeric" placeholder="2021"></label>
+          <label>Пробег, км <input type="number" id="mileage" inputmode="numeric" placeholder="48000"></label>
+          <label>Цвет <input type="text" id="color" placeholder="белый"></label>
+          <label>Кузов
+            <select id="body">
+              <option value="">—</option>
+              <option value="sedan">седан</option>
+              <option value="suv">внедорожник</option>
+              <option value="wagon">универсал</option>
+              <option value="hatchback">хэтчбек</option>
+              <option value="coupe">купе</option>
+              <option value="minivan">минивэн</option>
+              <option value="pickup">пикап</option>
+              <option value="van">фургон</option>
+              <option value="convertible">кабриолет</option>
+            </select>
+          </label>
+          <label>Привод
+            <select id="drive">
+              <option value="">—</option>
+              <option value="FWD">передний</option>
+              <option value="RWD">задний</option>
+              <option value="AWD">полный (AWD)</option>
+              <option value="4WD">полный (4WD)</option>
+            </select>
+          </label>
+          <label>КПП
+            <select id="trans">
+              <option value="">—</option>
+              <option value="AT">автомат</option>
+              <option value="CVT">вариатор</option>
+              <option value="DCT">робот (DCT)</option>
+              <option value="AMT">робот (AMT)</option>
+              <option value="MT">механика</option>
+            </select>
+          </label>
+          <label>Топливо
+            <select id="fuel">
+              <option value="">—</option>
+              <option value="petrol">бензин</option>
+              <option value="diesel">дизель</option>
+              <option value="hybrid">гибрид</option>
+              <option value="phev">гибрид (PHEV)</option>
+              <option value="lpg">газ</option>
+            </select>
+          </label>
+          <label>Оценка аукциона <input type="text" id="grade" placeholder="4.5"></label>
+          <label>Оценка салона <input type="text" id="interiorGrade" placeholder="B"></label>
+          <label>Номер лота <input type="text" id="lotNo" placeholder="30215"></label>
+        </div>
+        <div class="field" style="margin-top:10px">
+          <label for="dromUrl">Ссылка на комплектацию drom.ru <small>(необязательно)</small></label>
+          <input type="text" id="dromUrl" inputmode="url" placeholder="https://www.drom.ru/catalog/…">
+        </div>
+        <div class="field">
+          <label for="vehicleNotes">Заметки <small>(повреждения, опции — для себя, в КП/подборки не попадает)</small></label>
+          <textarea id="vehicleNotes" rows="2" placeholder="A2 — вмятина на правой двери; климат-контроль, камера"></textarea>
+        </div>
+      </section>
 
       <!-- Опции авто (компактно) -->
       <section class="card toggles">
@@ -118,6 +198,201 @@
       <section id="result" class="result hidden"></section>
     </main>
 
+    <!-- Экран распознавания скрина -->
+    <section id="screenExtract" class="screen hidden">
+      <div class="settings-head">
+        <button id="btnExtractBack" class="icon-btn" type="button">←</button>
+        <h2>Из скриншота</h2>
+      </div>
+
+      <section class="card">
+        <div class="card-head">Скриншот</div>
+        <p class="hint">Лист японского аукциона, карточка Encar/корейской площадки — что угодно с характеристиками авто.</p>
+        <label class="upload-drop" id="extractDrop" for="extractFile">
+          <span id="extractDropText">📷 Выбрать фото</span>
+          <img id="extractPreview" class="hidden" alt="">
+        </label>
+        <input type="file" id="extractFile" accept="image/*" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
+
+        <div class="field" style="margin-top:12px">
+          <label for="extractDromUrl">Ссылка на комплектацию drom.ru <small>(необязательно)</small></label>
+          <input type="text" id="extractDromUrl" inputmode="url" placeholder="https://www.drom.ru/catalog/…">
+        </div>
+
+        <button id="btnExtractRun" class="primary-btn" type="button" style="width:100%;margin-top:12px" disabled>
+          🔎 Распознать
+        </button>
+      </section>
+
+      <section class="card hidden" id="extractReview">
+        <div class="card-head">Что распознано</div>
+        <div id="extractSummary"></div>
+        <div id="extractWarnings"></div>
+        <div class="settings-actions">
+          <button id="btnExtractApply" class="primary-btn" type="button">✅ Заполнить форму</button>
+          <button id="btnExtractCancel" class="ghost-btn" type="button">Отмена</button>
+        </div>
+      </section>
+    </section>
+
+    <!-- Экран пакетного импорта из CSV -->
+    <section id="screenImport" class="screen hidden">
+      <div class="settings-head">
+        <button id="btnImportBack" class="icon-btn" type="button">←</button>
+        <h2>Импорт из таблицы</h2>
+      </div>
+
+      <section class="card">
+        <div class="card-head">Файл CSV</div>
+        <p class="hint">
+          Заполните шаблон в Excel или Google Таблицах и сохраните как CSV.
+          Обязательные колонки: <b>страна, марка, модель, цена</b>. Остальные можно оставить пустыми.
+          Расчёт для каждой строки делается тем же движком, что и вручную.
+        </p>
+        <button id="btnDownloadTemplate" class="mini-btn" type="button">📄 Скачать шаблон</button>
+
+        <label class="upload-drop" id="importDrop" for="importFile" style="margin-top:12px">
+          <span id="importDropText">📊 Выбрать CSV</span>
+        </label>
+        <input type="file" id="importFile" accept=".csv,text/csv"
+               style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
+      </section>
+
+      <section class="card hidden" id="importPreview">
+        <div class="card-head">
+          <span>Проверка</span>
+          <span id="importCount" class="rate-summary"></span>
+        </div>
+        <div id="importIssues"></div>
+        <div id="importRows"></div>
+        <div class="settings-actions">
+          <button id="btnImportRun" class="primary-btn" type="button">Импортировать</button>
+          <button id="btnImportCancel" class="ghost-btn" type="button">Отмена</button>
+        </div>
+      </section>
+
+      <section class="card hidden" id="importResult">
+        <div class="card-head">Результат</div>
+        <div id="importResultBody"></div>
+      </section>
+    </section>
+
+    <!-- Экран базы авто -->
+    <section id="screenBase" class="screen hidden">
+      <div class="settings-head">
+        <button id="btnBaseBack" class="icon-btn" type="button">←</button>
+        <h2>База авто</h2>
+      </div>
+
+      <section class="card" id="filterCard">
+        <div class="card-head">
+          <span>Фильтр</span>
+          <span id="baseCount" class="rate-summary"></span>
+        </div>
+
+        <div class="field">
+          <label>Цена «под ключ», ₽</label>
+          <div class="input-group">
+            <input type="number" id="fPriceMin" inputmode="numeric" placeholder="от">
+            <input type="number" id="fPriceMax" inputmode="numeric" placeholder="до">
+          </div>
+        </div>
+
+        <label class="switch-row" style="padding:6px 0">
+          <span>Только льготный утиль <small>(≤160 л.с. / ≤80 кВт)</small></span>
+          <input type="checkbox" id="fUtilPref" class="switch">
+        </label>
+
+        <div class="field">
+          <label>Год выпуска</label>
+          <div class="input-group">
+            <input type="number" id="fYearMin" inputmode="numeric" placeholder="от">
+            <input type="number" id="fYearMax" inputmode="numeric" placeholder="до">
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="fMileageMax">Пробег не больше, км</label>
+          <input type="number" id="fMileageMax" inputmode="numeric" placeholder="100000">
+        </div>
+
+        <div class="grid2">
+          <label>Кузов
+            <select id="fBody">
+              <option value="">любой</option>
+              <option value="sedan">седан</option>
+              <option value="suv">внедорожник</option>
+              <option value="wagon">универсал</option>
+              <option value="hatchback">хэтчбек</option>
+              <option value="coupe">купе</option>
+              <option value="minivan">минивэн</option>
+              <option value="pickup">пикап</option>
+              <option value="van">фургон</option>
+            </select>
+          </label>
+          <label>Привод
+            <select id="fDrive">
+              <option value="">любой</option>
+              <option value="FWD">передний</option>
+              <option value="RWD">задний</option>
+              <option value="AWD">AWD</option>
+              <option value="4WD">4WD</option>
+            </select>
+          </label>
+          <label>КПП
+            <select id="fTrans">
+              <option value="">любая</option>
+              <option value="AT">автомат</option>
+              <option value="CVT">вариатор</option>
+              <option value="DCT">DCT</option>
+              <option value="AMT">AMT</option>
+              <option value="MT">механика</option>
+            </select>
+          </label>
+          <label>Страна
+            <select id="fCountry">
+              <option value="">любая</option>
+              <option value="jp">🇯🇵 Япония</option>
+              <option value="kr">🇰🇷 Корея</option>
+              <option value="cn">🇨🇳 Китай</option>
+            </select>
+          </label>
+          <label>Статус
+            <select id="fStatus">
+              <option value="active">в продаже</option>
+              <option value="reserved">бронь</option>
+              <option value="sold">продано</option>
+              <option value="all">все</option>
+            </select>
+          </label>
+          <label>Сортировка
+            <select id="fSort">
+              <option value="created_at">сначала новые</option>
+              <option value="price">по цене</option>
+              <option value="year">по году</option>
+              <option value="mileage">по пробегу</option>
+              <option value="power">по мощности</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="field" style="margin-top:12px">
+          <label for="fQ">Поиск по названию или лоту</label>
+          <input type="text" id="fQ" placeholder="Harrier">
+        </div>
+
+        <div class="settings-actions">
+          <button id="btnApplyFilter" class="primary-btn" type="button">Показать</button>
+          <button id="btnResetFilter" class="ghost-btn" type="button">Сбросить</button>
+        </div>
+      </section>
+
+      <div id="baseList"></div>
+      <!-- не .hidden: display:none мешает программному .click() в части браузеров -->
+      <input type="file" id="basePhotoInput" accept="image/*" multiple
+             style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
+    </section>
+
     <!-- Экран настроек -->
     <section id="screenSettings" class="screen hidden">
       <div class="settings-head">
@@ -172,6 +447,9 @@
   <script src="js/data.js"></script>
   <script src="js/calc.js"></script>
   <script src="js/rates.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/base.js"></script>
+  <script src="js/import.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

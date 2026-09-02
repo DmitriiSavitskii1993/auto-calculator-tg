@@ -2,6 +2,14 @@ node_modules/
 .DS_Store
 *.log
 
+# Python-сервис wtcars
+venv/
+__pycache__/
+*.pyc
+*.db
+*.db-shm
+*.db-wal
+
 # Секреты и переменные окружения (никогда не коммитить)
 .env
 .env.*

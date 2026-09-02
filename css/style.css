@@ -76,12 +76,14 @@ body {
 .field label { display: block; font-size: 13px; color: var(--hint); margin-bottom: 5px; }
 .cur { color: var(--accent); font-weight: 700; }
 
-input[type=number], input[type=text], select {
+input[type=number], input[type=text], select, textarea {
   width: 100%; padding: 11px 12px; font-size: 16px;
   border: 1px solid var(--border); border-radius: 10px;
   background: var(--bg); color: var(--text); outline: none;
+  font-family: inherit;
 }
-input:focus, select:focus { border-color: var(--accent); }
+textarea { resize: vertical; }
+input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 
 .input-group { display: flex; gap: 8px; }
 .input-group input { flex: 1; min-width: 0; }
@@ -161,3 +163,70 @@ input:focus, select:focus { border-color: var(--accent); }
 /* Кнопка расчёта (если MainButton недоступна — например в браузере) */
 .calc-btn { width: 100%; background: var(--btn); color: var(--btn-text); border: none;
   padding: 15px; border-radius: 12px; font-size: 17px; font-weight: 700; cursor: pointer; margin-bottom: 12px; }
+
+/* =========================================================================
+ *  Режим «База»: карточки авто
+ * ========================================================================= */
+.car-card {
+  display: flex; gap: 10px; background: var(--card); border-radius: var(--radius);
+  padding: 10px; margin-bottom: 10px; align-items: flex-start;
+}
+.car-thumb {
+  width: 92px; height: 70px; flex: none; object-fit: cover;
+  border-radius: 10px; background: var(--bg);
+}
+.car-thumb-empty {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px; color: var(--hint); border: 1px dashed var(--border);
+}
+.car-body { flex: 1; min-width: 0; }
+.car-title {
+  font-weight: 700; font-size: 15px; line-height: 1.25;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.car-specs { font-size: 12px; color: var(--hint); margin: 3px 0 5px; line-height: 1.35; }
+.car-price { font-size: 17px; font-weight: 800; color: var(--accent); }
+.car-price-cap { font-size: 11px; font-weight: 500; color: var(--hint); }
+
+.car-badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+.badge {
+  font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 6px;
+  background: var(--border); color: var(--text);
+}
+.badge-good { background: rgba(39, 174, 96, .15); color: #1f9d57; }
+.badge-warn { background: rgba(231, 76, 60, .12); color: #d64a3b; }
+
+.car-actions { display: flex; gap: 6px; margin-top: 8px; }
+.car-actions .mini-btn { padding: 4px 9px; font-size: 12px; }
+
+/* Поля характеристик подписываются сверху — в grid2 подпись отдельной строкой */
+#cardVehicle .grid2 label,
+#filterCard .grid2 label { display: block; }
+#cardVehicle .grid2 select,
+#filterCard .grid2 select { margin-top: 4px; }
+
+/* Поле, которое распознавание заполнило неуверенно — просим перепроверить */
+.needs-check { border-color: #e6a23c !important; background: rgba(230, 162, 60, .07); }
+
+/* =========================================================================
+ *  Экран распознавания скрина
+ * ========================================================================= */
+.upload-drop {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 140px; border: 2px dashed var(--border); border-radius: var(--radius);
+  background: var(--bg); color: var(--hint); font-size: 14px; font-weight: 600;
+  cursor: pointer; overflow: hidden; text-align: center; padding: 10px;
+}
+.upload-drop img { max-width: 100%; max-height: 220px; border-radius: 10px; object-fit: contain; }
+
+.extract-row { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0;
+  font-size: 14px; border-bottom: 1px solid var(--border); }
+.extract-row:last-child { border-bottom: none; }
+.extract-row .k { color: var(--hint); }
+.extract-row .v { font-weight: 600; text-align: right; }
+.extract-row .v.low-conf { color: #e6a23c; }
+
+.extract-warning {
+  margin: 8px 0 0; padding: 8px 10px; border-radius: 8px; font-size: 12.5px; line-height: 1.4;
+  border-left: 3px solid #e6a23c; background: rgba(230, 162, 60, .10);
+}
