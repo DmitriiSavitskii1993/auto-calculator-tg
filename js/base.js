@@ -976,9 +976,9 @@ function carCardHtml(c) {
         foreign +
         '<div class="car-badges">' + utilBadge + staleBadge + statusBadge + '</div>' +
         '<div class="car-actions">' +
+          '<button class="mini-btn" data-act="image" data-id="' + c.id + '">🖼 Расчёт</button>' +
           '<button class="mini-btn" data-act="offer" data-id="' + c.id + '">📄 Клиенту</button>' +
           '<button class="mini-btn" data-act="photos" data-id="' + c.id + '">📷 Фото</button>' +
-          '<button class="mini-btn" data-act="sold" data-id="' + c.id + '">✅ Продано</button>' +
           '<button class="mini-btn" data-act="del" data-id="' + c.id + '">🗑</button>' +
         '</div>' +
       '</div>' +
@@ -1333,6 +1333,64 @@ async function recalcVisible(btn) {
   loadBase();
 }
 
+/* Картинка расчёта по сохранённой карточке — та же таблица, что и после
+ * обычного расчёта. Курс берём из снимка карточки, а не текущий: иначе
+ * в картинке окажется сегодняшний курс при вчерашних суммах.
+ *
+ * Blob собираем ВНУТРИ ClipboardItem, не дожидаясь загрузки заранее:
+ * Safari и WebView Telegram разрешают запись в буфер только в рамках
+ * пользовательского жеста, а await до вызова write() его теряет. */
+async function copyCardImage(id, btn) {
+  const label = btn ? btn.textContent : null;
+  if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+
+  const buildBlob = async () => {
+    const full = await wtApi.getCar(id);
+    const snap = full.rates_snapshot || {};
+    const conf = (snap.cbr && snap.market)
+      ? Object.assign({}, cfg, { rates: { cbr: snap.cbr, market: snap.market } })
+      : cfg;
+    return renderTableToBlob(buildTableLines(full.calc_result, true, conf));
+  };
+
+  let ok = false;
+  try {
+    if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': buildBlob() })]);
+      ok = true;
+    }
+  } catch (e) { /* ниже второй заход: сначала блоб, потом запись */ }
+
+  if (!ok) {
+    try {
+      const blob = await buildBlob();
+      if (blob && window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        ok = true;
+      }
+    } catch (e) { /* остаётся текстовый запасной вариант */ }
+  }
+
+  if (!ok) {
+    try {
+      const full = await wtApi.getCar(id);
+      const snap = full.rates_snapshot || {};
+      const conf = (snap.cbr && snap.market)
+        ? Object.assign({}, cfg, { rates: { cbr: snap.cbr, market: snap.market } })
+        : cfg;
+      ok = await copyToClipboard(buildCopyText(full.calc_result, true, conf));
+      if (ok) toast('Картинка не поддерживается — скопирован текст расчёта');
+    } catch (e) {}
+  } else {
+    toast('🖼 Расчёт скопирован картинкой — вставьте в чат');
+  }
+
+  haptic(ok ? 'medium' : 'light');
+  if (!ok) toast('Не удалось скопировать расчёт');
+  if (btn) { btn.textContent = ok ? '✅ Готово' : (label || '🖼 Расчёт'); btn.disabled = false; }
+  if (btn && ok) setTimeout(() => { btn.textContent = '🖼 Расчёт'; }, 1600);
+}
+
 async function baseCardAction(act, id, btn) {
   const car = baseState.items.find((c) => String(c.id) === String(id));
   try {
@@ -1344,10 +1402,8 @@ async function baseCardAction(act, id, btn) {
       baseState.total = Math.max(0, baseState.total - 1);
       renderBaseList();
       haptic('light');
-    } else if (act === 'sold') {
-      await wtApi.updateCar(id, { status: 'sold' });
-      toast('Отмечено как проданное');
-      loadBase();
+    } else if (act === 'image') {
+      await copyCardImage(id, btn);
     } else if (act === 'offer') {
       // calc_result приходит только в детальной карточке — в списке его нет
       if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
@@ -1537,6 +1593,6 @@ if (typeof window !== 'undefined') {
     ageInfo, renderAgeHint, syncAgeFromYear,
     buildSelectionText, copySelection, selectedCars, renderSelectionBar,
     postPrompt, EXTRACT_PROMPT, copyExtractPrompt, carToPostLines,
-    setExtractPhoto, pasteImageFromClipboard, buildClientOffer,
+    setExtractPhoto, pasteImageFromClipboard, buildClientOffer, copyCardImage,
   });
 }

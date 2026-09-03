@@ -661,7 +661,12 @@ function renderResult(r) {
 
 /* --- строки расчёта с разметкой (kind) — общий источник для текста и картинки ---
  * kind: title | div | divh | head (подытог секции) | item | grand (итого) | blank */
-function buildTableLines(r, withStages) {
+/* cfgUse — конфигурация, по которой считался ЭТОТ расчёт. Для текущего
+ * расчёта это глобальный cfg, а для карточки из базы — её снимок курсов:
+ * иначе в картинке окажется сегодняшний курс при вчерашних суммах. */
+function buildTableLines(r, withStages, cfgUse) {
+  // Нельзя назвать это cfg — затенило бы модульную переменную.
+  const conf = cfgUse || cfg;
   const flags = { jp: '🇯🇵', kr: '🇰🇷', cn: '🇨🇳' };
   const ageShort = { '<3': '<3 лет', '3-5': '3-5 лет', '5-7': '5-7 лет', '>7': '>7 лет', '>3': '>3 лет' };
   const ageLabel = ageShort[r.input.age] || '';
@@ -671,7 +676,7 @@ function buildTableLines(r, withStages) {
 
   const money = (n) => fmtNum(n).replace(/ /g, ' ') + ' ₽';
   const c = r.input.country;
-  const mk = cfg.rates.market;
+  const mk = conf.rates.market;
   const cur = CUR[c];
 
   // блоки расходов с подытогами
@@ -686,7 +691,7 @@ function buildTableLines(r, withStages) {
   sections.push({ head: ['РАСХОДЫ ПО ' + COUNTRY_UP[c], money(r.carCostRub + r.bankFee)], items: foreignItems });
 
   const customsItems = [['  Пошлина+сбор', money(r.duty + r.customsFee)]];
-  if (r.input.isElectric) { customsItems.push(['  Акциз', money(r.excise)]); customsItems.push(['  НДС ' + Math.round(cfg.evVatPercent * 100) + '%', money(r.vat)]); }
+  if (r.input.isElectric) { customsItems.push(['  Акциз', money(r.excise)]); customsItems.push(['  НДС ' + Math.round(conf.evVatPercent * 100) + '%', money(r.vat)]); }
   customsItems.push([`  Утиль (${r.utilCoef})`, money(r.utilFee)]);
   sections.push({ head: ['ТАМОЖНЯ', money(r.customsTotal)], items: customsItems });
 
@@ -730,8 +735,8 @@ function buildTableLines(r, withStages) {
 }
 
 /* --- текст расчёта в код-блоке (для копирования текстом / отправки в Telegram) --- */
-function buildCopyText(r, withStages) {
-  return '```\n' + buildTableLines(r, withStages).map(o => o.text).join('\n') + '\n```';
+function buildCopyText(r, withStages, cfgUse) {
+  return '```\n' + buildTableLines(r, withStages, cfgUse).map(o => o.text).join('\n') + '\n```';
 }
 
 /* --- отправка расчёта в чат ---
