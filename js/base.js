@@ -551,6 +551,19 @@ async function loadBase() {
   }
 }
 
+/* Курс, по которому посчитана карточка. Возвращает null, если снимок
+ * совпадает с текущим — тогда метку показывать незачем. */
+function rateStaleness(c) {
+  const snap = (c.rates_snapshot || {}).market || {};
+  const now = cfg.rates.market || {};
+  const key = { jp: 'JPY100_ATB', kr: 'KRW1000', cn: 'CNY' }[c.country];
+  if (!key || snap[key] == null || now[key] == null) return null;
+  const was = Number(snap[key]), is = Number(now[key]);
+  if (!was || !is || was === is) return null;
+  const diffPct = ((is - was) / was) * 100;
+  return { was, is, diffPct, date: (c.rates_snapshot || {}).cbr_date || null };
+}
+
 function carCardHtml(c) {
   const photo = (c.photos && c.photos[0]) ? wtApi.photoUrl(c.photos[0].url) : null;
   const specs = [
@@ -568,6 +581,19 @@ function carCardHtml(c) {
   const statusBadge = c.status !== 'active'
     ? '<span class="badge">' + esc(c.status) + '</span>' : '';
 
+  // цена в валюте — то, что зафиксировано сделкой; рубли зависят от курса
+  const CUR_SIGN = { JPY: '¥', KRW: '₩', CNY: '¥' };
+  const foreign = c.price_foreign
+    ? '<div class="car-foreign">' + fmtNum(c.price_foreign) + ' ' +
+      esc(CUR_SIGN[c.currency] || c.currency || '') + '</div>'
+    : '';
+
+  const stale = rateStaleness(c);
+  const staleBadge = stale
+    ? '<span class="badge badge-stale" title="Курс изменился с момента расчёта">' +
+      'курс ' + (stale.diffPct > 0 ? '+' : '') + stale.diffPct.toFixed(1) + '%</span>'
+    : '';
+
   return (
     '<div class="car-card" data-car-id="' + c.id + '">' +
       (photo
@@ -579,7 +605,8 @@ function carCardHtml(c) {
         '<div class="car-specs">' + esc(specs) + '</div>' +
         '<div class="car-price">' + money(c.price_rub_total) +
           '<span class="car-price-cap"> под ключ</span></div>' +
-        '<div class="car-badges">' + utilBadge + statusBadge + '</div>' +
+        foreign +
+        '<div class="car-badges">' + utilBadge + staleBadge + statusBadge + '</div>' +
         '<div class="car-actions">' +
           '<button class="mini-btn" data-act="photos" data-id="' + c.id + '">📷 Фото</button>' +
           '<button class="mini-btn" data-act="sold" data-id="' + c.id + '">✅ Продано</button>' +
@@ -604,6 +631,46 @@ function renderBaseList() {
   el.innerHTML = baseState.items.length
     ? baseState.items.map(carCardHtml).join('')
     : '<p class="hint">Под фильтр ничего не подошло. Смягчите условия или сохраните первый расчёт в режиме «База».</p>';
+}
+
+/* Пересчёт показанных карточек по сегодняшним курсам.
+ * Цена в валюте не трогается — она зафиксирована сделкой. Пересчитываются
+ * только рублёвые суммы: тем же calculate() из calc.js на сохранённом
+ * calc_input, но с текущим cfg. */
+async function recalcVisible(btn) {
+  const stale = baseState.items.filter((c) => rateStaleness(c));
+  if (!stale.length) { toast('Все показанные карточки уже по актуальному курсу'); return; }
+
+  const ok = await confirmAsync(
+    `Пересчитать ${stale.length} шт. по сегодняшнему курсу?\n` +
+    'Цены в иенах/вонах/юанях останутся прежними — обновятся только рубли.');
+  if (!ok) return;
+
+  const rates = ratesSnapshot();
+  let done = 0;
+  const failed = [];
+  if (btn) btn.disabled = true;
+
+  for (let i = 0; i < stale.length; i++) {
+    const c = stale[i];
+    if (btn) btn.textContent = `⏳ ${i + 1} из ${stale.length}…`;
+    try {
+      // берём полную карточку: в списке calc_input не приходит
+      const full = await wtApi.getCar(c.id);
+      const result = calculate(full.calc_input, cfg);
+      await wtApi.recalcCar(c.id, { calc_result: result, rates });
+      done++;
+    } catch (e) {
+      failed.push(c.id + ': ' + e.message);
+    }
+  }
+
+  if (btn) { btn.disabled = false; btn.textContent = '💱 Пересчитать по курсу'; }
+  haptic('medium');
+  toast(failed.length
+    ? `Пересчитано ${done}, не вышло ${failed.length}`
+    : `Пересчитано ${done} шт. по сегодняшнему курсу`);
+  loadBase();
 }
 
 async function baseCardAction(act, id, btn) {
@@ -667,6 +734,8 @@ function bindBaseEvents() {
     const btn = e.target.closest('[data-act]');
     if (btn) { baseCardAction(btn.dataset.act, btn.dataset.id, btn); return; }
     if (e.target.closest('#btnApplyFilter')) { loadBase(); return; }
+    const recalcBtn = e.target.closest('#btnRecalcRates');
+    if (recalcBtn) { recalcVisible(recalcBtn); return; }
     if (e.target.closest('#btnResetFilter')) {
       screen.querySelectorAll('#filterCard input, #filterCard select').forEach((el) => {
         if (el.type === 'checkbox') el.checked = false; else el.value = '';

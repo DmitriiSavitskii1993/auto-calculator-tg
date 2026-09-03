@@ -17,7 +17,7 @@ from database import get_session
 from deps import get_current_owner
 from models import Car, CarPhoto, Owner, RateSnapshot
 from schemas import (
-    CarCreate, CarDetailOut, CarListOut, CarOut, CarUpdate, PhotoOut, VehicleIn,
+    CarCreate, CarDetailOut, CarListOut, CarOut, CarRecalc, CarUpdate, PhotoOut, VehicleIn,
 )
 from security import photo_token
 from services import storage
@@ -305,6 +305,48 @@ async def update_car(
     if payload.notes is not None:
         car.notes = payload.notes
     car.updated_at = datetime.utcnow()
+    await session.commit()
+    await session.refresh(car)
+    return _car_out(car, owner, detailed=True)
+
+
+@router.post("/{car_id}/recalc", response_model=CarDetailOut)
+async def recalc_car(
+    car_id: int,
+    payload: CarRecalc,
+    owner: Owner = Depends(get_current_owner),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Обновляет рублёвые суммы карточки по свежим курсам.
+
+    Цена в валюте (price_foreign/currency) — то, что зафиксировано сделкой,
+    и не трогается. Меняются только производные от курса величины и снимок
+    курсов, по которому они получены.
+    """
+    car = await _get_owned_car(session, owner, car_id)
+
+    snap = RateSnapshot(
+        cbr=payload.rates.cbr,
+        market=payload.rates.market,
+        cbr_date=payload.rates.cbr_date,
+        calc_version=payload.rates.calc_version,
+    )
+    session.add(snap)
+    await session.flush()
+
+    # _apply_calc ждёт объект с calc_input/calc_result — исходные данные
+    # берём из карточки, они не меняются
+    _apply_calc(car, CarCreate(
+        vehicle=VehicleIn(),
+        calc_input=car.calc_input,
+        calc_result=payload.calc_result,
+        rates=payload.rates,
+    ))
+    car.rates_snapshot = payload.rates.model_dump(mode="json")
+    car.rate_snapshot_id = snap.id
+    car.updated_at = datetime.utcnow()
+
     await session.commit()
     await session.refresh(car)
     return _car_out(car, owner, detailed=True)

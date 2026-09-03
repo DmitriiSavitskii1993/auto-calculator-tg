@@ -366,6 +366,14 @@ function buildRow(row, map, lineNo) {
   const powerKw = asInt(get('power_kw'));
   if (!powerHp && !powerKw) errors.push('мощность: укажите л.с. или кВт');
 
+  const BODY_VALUES = ['sedan','suv','wagon','hatchback','coupe','minivan','pickup','van','convertible','other'];
+  const body = mapEnum(get('body'), BODY_MAP, BODY_VALUES);
+  if (!body) {
+    errors.push(get('body')
+      ? `кузов: «${get('body')}» не распознан (седан, внедорожник, универсал, хэтчбек, купе, минивэн, пикап, фургон, кабриолет)`
+      : 'кузов: обязателен — без него авто не попадёт в подборки по типу');
+  }
+
   const year = asInt(get('year'));
   const month = asInt(get('month'));
 
@@ -420,7 +428,7 @@ function buildRow(row, map, lineNo) {
     trim: get('trim') || null,
     year: year,
     mileage_km: asInt(get('mileage_km')),
-    body: mapEnum(get('body'), BODY_MAP, ['sedan','suv','wagon','hatchback','coupe','minivan','pickup','van','convertible','other']),
+    body: body,
     drive: mapEnum(get('drive'), DRIVE_MAP, ['FWD','RWD','AWD','4WD']),
     transmission: mapEnum(get('transmission'), TRANS_MAP, ['AT','MT','CVT','DCT','AMT','other']),
     fuel: isElectric ? 'ev' : mapEnum(get('fuel'), FUEL_MAP, ['petrol','diesel','hybrid','phev','ev','lpg','other']),

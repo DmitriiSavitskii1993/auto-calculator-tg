@@ -195,6 +195,10 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 }
 .badge-good { background: rgba(39, 174, 96, .15); color: #1f9d57; }
 .badge-warn { background: rgba(231, 76, 60, .12); color: #d64a3b; }
+.badge-stale { background: rgba(230, 162, 60, .15); color: #b8791f; }
+
+/* цена в валюте — под рублёвой: она зафиксирована и от курса не зависит */
+.car-foreign { font-size: 12px; color: var(--hint); margin-top: 1px; }
 
 .car-actions { display: flex; gap: 6px; margin-top: 8px; }
 .car-actions .mini-btn { padding: 4px 9px; font-size: 12px; }

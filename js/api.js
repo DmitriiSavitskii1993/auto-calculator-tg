@@ -112,6 +112,8 @@ const wtApi = {
   createCar: (payload) => wtFetch('/cars', { method: 'POST', body: payload }),
   updateCar: (id, patch) => wtFetch('/cars/' + id, { method: 'PATCH', body: patch }),
   deleteCar: (id) => wtFetch('/cars/' + id, { method: 'DELETE' }),
+  /* пересчёт рублёвых сумм карточки по свежим курсам (цена в валюте не меняется) */
+  recalcCar: (id, payload) => wtFetch('/cars/' + id + '/recalc', { method: 'POST', body: payload }),
   uploadPhotos: (carId, files) => {
     const fd = new FormData();
     Array.from(files).forEach((f) => fd.append('files', f, f.name || 'photo.jpg'));

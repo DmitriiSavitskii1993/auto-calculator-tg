@@ -95,6 +95,17 @@ class CarUpdate(BaseModel):
     notes: str | None = None
 
 
+class CarRecalc(BaseModel):
+    """
+    Пересчёт карточки по новым курсам. Расчёт делает клиент тем же
+    calculate() из calc.js — сюда приходит готовый результат и снимок
+    курсов, по которым он получен. calc_input не меняется: это те же
+    исходные данные авто, меняются только курсы.
+    """
+    calc_result: dict[str, Any]
+    rates: RatesIn
+
+
 class PhotoOut(BaseModel):
     id: int
     position: int
