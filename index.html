@@ -427,6 +427,18 @@
         <p class="hint">Цена в валюте зафиксирована сделкой и не меняется — обновляются только рубли.</p>
       </section>
 
+      <!-- панель появляется, когда отмечена хотя бы одна карточка -->
+      <div id="selBar" class="sel-bar hidden">
+        <div class="sel-bar-row">
+          <span id="selCount" class="sel-count"></span>
+          <button id="btnClearSel" class="mini-btn" type="button">Снять</button>
+        </div>
+        <div class="sel-bar-row">
+          <button id="btnCopySelPrompt" class="copy-btn send-btn" type="button">✨ Копировать с промтом</button>
+          <button id="btnCopySel" class="copy-btn" type="button">📋 Только данные</button>
+        </div>
+      </div>
+
       <div id="baseList"></div>
       <!-- не .hidden: display:none мешает программному .click() в части браузеров -->
       <input type="file" id="basePhotoInput" accept="image/*" multiple

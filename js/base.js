@@ -14,6 +14,7 @@ const baseState = {
   items: [],
   total: 0,
   loading: false,
+  selected: new Set(),   // id отмеченных карточек — из них собирается подборка
 };
 
 /* --- распознавание скрина --- */
@@ -38,6 +39,8 @@ const FUEL_RU = {
   petrol: 'бензин', diesel: 'дизель', hybrid: 'гибрид',
   phev: 'гибрид (PHEV)', ev: 'электро', lpg: 'газ', other: 'другое',
 };
+const DRIVE_RU = { FWD: 'передний привод', RWD: 'задний привод', AWD: 'полный привод', '4WD': 'полный привод (4WD)' };
+const TRANS_RU = { AT: 'автомат', CVT: 'вариатор', DCT: 'робот DCT', AMT: 'робот', MT: 'механика', other: 'КПП н/д' };
 const FLAG = { jp: '🇯🇵', kr: '🇰🇷', cn: '🇨🇳' };
 
 function money(n) {
@@ -773,8 +776,12 @@ function carCardHtml(c) {
       'курс ' + (stale.diffPct > 0 ? '+' : '') + stale.diffPct.toFixed(1) + '%</span>'
     : '';
 
+  const checked = baseState.selected.has(c.id) ? ' checked' : '';
+
   return (
-    '<div class="car-card" data-car-id="' + c.id + '">' +
+    '<div class="car-card' + (checked ? ' car-card-sel' : '') + '" data-car-id="' + c.id + '">' +
+      '<input type="checkbox" class="car-pick" data-pick="' + c.id + '"' + checked +
+        ' title="Отметить для подборки">' +
       (photo
         ? '<img class="car-thumb" src="' + esc(photo) + '" alt="" loading="lazy">'
         : '<div class="car-thumb car-thumb-empty">📷</div>') +
@@ -796,6 +803,111 @@ function carCardHtml(c) {
   );
 }
 
+/* =========================================================================
+ *  Подборка: выбрал карточки → скопировал текстом → вставил в GPT → пост.
+ *
+ *  Формат намеренно человекочитаемый, а не JSON: модель по нему пишет
+ *  живее, да и глазами проверить проще перед отправкой.
+ * ========================================================================= */
+
+const POST_PROMPT =
+  'Напиши пост-подборку для Telegram-канала об автомобилях под заказ из Японии.\n' +
+  'Компания WESTTRANSIT (WT), Владивосток: привозим авто под ключ до города клиента.\n\n' +
+  'Требования к посту:\n' +
+  '- живой текст, без канцелярита и без «уважаемые клиенты»;\n' +
+  '- по каждой машине 2–3 строки: чем хороша и кому подойдёт;\n' +
+  '- цену «под ключ» указывай как есть, это финальная сумма до города;\n' +
+  '- если у машины отмечен льготный утильсбор — это сильный аргумент,\n' +
+  '  обыграй: мощность до 160 л.с. экономит сотни тысяч на утиле;\n' +
+  '- в конце короткий призыв написать в личку за подбором;\n' +
+  '- разметка Telegram: <b>жирный</b>, эмодзи умеренно;\n' +
+  '- не выдумывай характеристики, которых нет в данных ниже.\n\n' +
+  'Данные:\n';
+
+function carToPostLines(c, idx) {
+  const L = [];
+  const title = [c.make, c.model, c.trim].filter(Boolean).join(' ') || c.title || 'Авто';
+  const when = c.year ? (c.year + (c.month ? ' (' + String(c.month).padStart(2, '0') + ')' : '')) : '';
+  L.push(`${idx}. ${title}${when ? ', ' + when : ''}`);
+
+  // всё по-русски: текст уходит в GPT и дальше в пост, коды вроде FWD там лишние
+  const spec = [
+    BODY_RU[c.body] || c.body,
+    DRIVE_RU[c.drive] || c.drive,
+    TRANS_RU[c.transmission] || c.transmission,
+    c.is_electric ? 'электро' : (FUEL_RU[c.fuel] || c.fuel),
+  ].filter(Boolean).join(' · ');
+  if (spec) L.push('   ' + spec);
+
+  const tech = [
+    c.mileage_km != null ? 'пробег ' + fmtNum(c.mileage_km) + ' км' : null,
+    // объём без разделителя разрядов: «1500 см³» читается привычнее, чем «1 500»
+    c.volume_cc ? c.volume_cc + ' см³' : null,
+    c.power_hp ? c.power_hp + ' л.с.' : null,
+  ].filter(Boolean).join(' · ');
+  if (tech) L.push('   ' + tech);
+
+  if (c.auction_grade) L.push('   оценка аукциона ' + c.auction_grade +
+    (c.interior_grade ? ', салон ' + c.interior_grade : ''));
+
+  // город отдельной строкой: склонять его в «до ...» на клиенте нечем
+  L.push('   ЦЕНА ПОД КЛЮЧ: ' + money(c.price_rub_total));
+  if (c.logistics_city) L.push('   город доставки: ' + c.logistics_city);
+
+  if (c.util_preferential === true) {
+    L.push('   ✅ льготный утильсбор ' + money(c.util_fee) + ' — мощность в пределах 160 л.с.');
+  } else if (c.util_preferential === false && c.util_fee) {
+    L.push('   утильсбор ' + money(c.util_fee) + ' (мощность выше льготного порога)');
+  }
+  return L.join('\n');
+}
+
+function buildSelectionText(cars, withPrompt) {
+  const date = new Date().toLocaleDateString('ru-RU');
+  const head = `Подборка на ${date}, ${cars.length} шт. Цены «под ключ» в рублях.\n\n`;
+  const body = cars.map((c, i) => carToPostLines(c, i + 1)).join('\n\n');
+  return (withPrompt ? POST_PROMPT : head) + (withPrompt ? head.trim() + '\n\n' : '') + body + '\n';
+}
+
+function selectedCars() {
+  return baseState.items.filter((c) => baseState.selected.has(c.id));
+}
+
+function renderSelectionBar() {
+  const bar = $('#selBar');
+  if (!bar) return;
+  const n = baseState.selected.size;
+  bar.classList.toggle('hidden', n === 0);
+  const label = $('#selCount');
+  if (label && n > 0) {
+    // Math.min от пустого массива вернул бы Infinity — считаем только по
+    // карточкам с ценой и только когда выбор непустой
+    const prices = selectedCars().map((c) => c.price_rub_total).filter((p) => p != null);
+    const range = prices.length
+      ? ' · от ' + money(Math.min.apply(null, prices)) + ' до ' + money(Math.max.apply(null, prices))
+      : '';
+    label.textContent = (n === 1 ? 'Выбрана 1 машина' : 'Выбрано ' + n) +
+      (n > 1 ? range : (prices.length ? ' · ' + money(prices[0]) : ''));
+  }
+}
+
+async function copySelection(withPrompt, btn) {
+  const cars = selectedCars();
+  if (!cars.length) { toast('Отметьте хотя бы одну машину'); return; }
+  const text = buildSelectionText(cars, withPrompt);
+  const ok = await copyToClipboard(text);
+  haptic(ok ? 'medium' : 'light');
+  toast(ok
+    ? (withPrompt ? `Скопировано с промтом (${cars.length} шт.) — вставьте в GPT`
+                  : `Скопировано ${cars.length} шт.`)
+    : 'Не удалось скопировать');
+  if (btn) {
+    const old = btn.textContent;
+    btn.textContent = '✅ Скопировано';
+    setTimeout(() => { btn.textContent = old; }, 1500);
+  }
+}
+
 function renderBaseList() {
   const el = $('#baseList');
   if (!el) return;
@@ -810,6 +922,11 @@ function renderBaseList() {
   el.innerHTML = baseState.items.length
     ? baseState.items.map(carCardHtml).join('')
     : '<p class="hint">Под фильтр ничего не подошло. Смягчите условия или сохраните первый расчёт в режиме «База».</p>';
+
+  // отметки могли остаться от прошлой выдачи — оставляем только видимые
+  const visible = new Set(baseState.items.map((c) => c.id));
+  baseState.selected.forEach((id) => { if (!visible.has(id)) baseState.selected.delete(id); });
+  renderSelectionBar();
 }
 
 /* Пересчёт показанных карточек по сегодняшним курсам.
@@ -910,6 +1027,24 @@ function bindBaseEvents() {
   if (!screen) return;
 
   screen.addEventListener('click', (e) => {
+    const pick = e.target.closest('[data-pick]');
+    if (pick) {
+      const id = Number(pick.dataset.pick);
+      if (pick.checked) baseState.selected.add(id); else baseState.selected.delete(id);
+      const card = pick.closest('.car-card');
+      if (card) card.classList.toggle('car-card-sel', pick.checked);
+      renderSelectionBar();
+      return;
+    }
+    if (e.target.closest('#btnCopySel')) { copySelection(false, e.target.closest('#btnCopySel')); return; }
+    if (e.target.closest('#btnCopySelPrompt')) { copySelection(true, e.target.closest('#btnCopySelPrompt')); return; }
+    if (e.target.closest('#btnClearSel')) {
+      baseState.selected.clear();
+      screen.querySelectorAll('[data-pick]').forEach((cb) => { cb.checked = false; });
+      screen.querySelectorAll('.car-card').forEach((cd) => cd.classList.remove('car-card-sel'));
+      renderSelectionBar();
+      return;
+    }
     const btn = e.target.closest('[data-act]');
     if (btn) { baseCardAction(btn.dataset.act, btn.dataset.id, btn); return; }
     if (e.target.closest('#btnApplyFilter')) { loadBase(); return; }
@@ -1021,5 +1156,6 @@ if (typeof window !== 'undefined') {
     handleImportFile, runImport, resetImportScreen, renderImportPreview,
     applyPasted, recalcVisible, rateStaleness,
     ageInfo, renderAgeHint, syncAgeFromYear,
+    buildSelectionText, copySelection, selectedCars, renderSelectionBar,
   });
 }
