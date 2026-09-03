@@ -361,8 +361,8 @@ function resetImportScreen() {
 
 async function handleImportFile(file) {
   try {
-    const text = await readCsvFile(file);
-    const { parsed, unknownColumns } = parseImport(text);
+    const data = await readImportFile(file);   // CSV → строка, XLSX → строки
+    const { parsed, unknownColumns } = parseImport(data);
 
     // считаем каждую строку настоящим движком — сразу видно итог «под ключ»
     parsed.forEach((p) => {
@@ -469,30 +469,6 @@ async function runImport() {
   btn.disabled = false;
 }
 
-function downloadTemplate() {
-  // Windows-Excel корректно открывает CSV с ';' только с BOM — иначе
-  // кириллица и разделители едут.
-  const header = 'страна;марка;модель;комплектация;год;месяц;пробег_км;объём_см3;мощность_лс;' +
-    'мощность_квт;электрокар;топливо;кпп;привод;кузов;цвет;оценка;оценка_салона;лот;аукцион;' +
-    'цена;доставка;возраст;санкционное;не_из_двфо;логистика_рф;город;drom_url;заметки';
-  const sample = 'jp;Toyota;Corolla Fielder;Hybrid G;2021;6;48000;1500;150;;нет;бензин;вариатор;' +
-    'передний;универсал;белый;4.5;B;30215;JU MIE;1200000;;;нет;нет;;Новосибирск;;';
-  const csv = '﻿' + header + '\n' + sample + '\n';
-
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = 'wt-import-template.csv';
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-  // В WebView Telegram скачивание часто блокируется — подстраховываемся буфером
-  copyToClipboard(header).then((okCopy) => {
-    toast(okCopy
-      ? 'Шаблон скачан. Шапка также скопирована в буфер — можно вставить в Excel.'
-      : 'Шаблон скачан.');
-  });
-}
-
 function bindImportEvents() {
   const screen = $('#screenImport');
   if (!screen) return;
@@ -510,8 +486,6 @@ function bindImportEvents() {
   if (cancel) cancel.addEventListener('click', resetImportScreen);
   const run = $('#btnImportRun');
   if (run) run.addEventListener('click', runImport);
-  const tpl = $('#btnDownloadTemplate');
-  if (tpl) tpl.addEventListener('click', downloadTemplate);
 }
 
 /* --- фильтры --- */

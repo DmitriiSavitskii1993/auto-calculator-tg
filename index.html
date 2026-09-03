@@ -245,16 +245,16 @@
       <section class="card">
         <div class="card-head">Файл CSV</div>
         <p class="hint">
-          Заполните шаблон в Excel или Google Таблицах и сохраните как CSV.
-          Обязательные колонки: <b>страна, марка, модель, цена</b>. Остальные можно оставить пустыми.
+          Заполните шаблон <b>import-template.xlsx</b> в Excel, Numbers или Google Таблицах
+          и выберите его здесь — пересохранять в CSV не нужно.
+          Обязательные колонки: <b>страна, марка, модель, цена</b>, остальные можно оставить пустыми.
           Расчёт для каждой строки делается тем же движком, что и вручную.
         </p>
-        <button id="btnDownloadTemplate" class="mini-btn" type="button">📄 Скачать шаблон</button>
 
         <label class="upload-drop" id="importDrop" for="importFile" style="margin-top:12px">
-          <span id="importDropText">📊 Выбрать CSV</span>
+          <span id="importDropText">📊 Выбрать файл (.xlsx или .csv)</span>
         </label>
-        <input type="file" id="importFile" accept=".csv,text/csv"
+        <input type="file" id="importFile" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
       </section>
 

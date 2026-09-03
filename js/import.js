@@ -53,22 +53,143 @@ function parseCsv(text) {
   return rows.filter((r) => r.some((c) => c.trim() !== ''));
 }
 
-/* Читаем файл, подстраиваясь под кодировку: Excel на Windows часто отдаёт
- * cp1251, и тогда UTF-8 даёт символы-замены вместо кириллицы. */
-function readCsvFile(file) {
+function readFileBuffer(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error('не удалось прочитать файл'));
-    reader.onload = () => {
-      const buf = reader.result;
-      let text = new TextDecoder('utf-8').decode(buf);
-      if (text.includes('�')) {
-        try { text = new TextDecoder('windows-1251').decode(buf); } catch (e) {}
-      }
-      resolve(text);
-    };
+    reader.onload = () => resolve(reader.result);
     reader.readAsArrayBuffer(file);
   });
+}
+
+/* Читает и CSV, и XLSX — тип определяем по сигнатуре, а не по расширению:
+ * пользователь может переименовать файл, а вот «PK» в начале ZIP не соврёт.
+ * Для CSV подстраиваемся под кодировку: Excel на Windows часто отдаёт cp1251,
+ * и тогда UTF-8 даёт символы-замены вместо кириллицы. */
+async function readImportFile(file) {
+  const buf = await readFileBuffer(file);
+  const head = new Uint8Array(buf, 0, Math.min(4, buf.byteLength));
+
+  if (head[0] === 0x50 && head[1] === 0x4b) {          // "PK" → ZIP → xlsx
+    return parseXlsx(buf);                              // массив строк
+  }
+
+  let text = new TextDecoder('utf-8').decode(buf);
+  if (text.includes('�')) {
+    try { text = new TextDecoder('windows-1251').decode(buf); } catch (e) {}
+  }
+  return text;                                          // строка
+}
+
+/* --- чтение .xlsx ------------------------------------------------------
+ * Excel-файл — это ZIP с XML внутри. Читаем его сами, без библиотек:
+ * подключать стороннюю зависимость с CDN нельзя (мини-апп должен работать
+ * автономно и без внешних доменов).
+ *
+ * Зачем вообще xlsx, если есть CSV: в CSV разделитель зависит от локали
+ * системы, и файл с ';' на «запятичной» машине открывается одной строкой.
+ * В xlsx колонки заданы структурно, и такой проблемы не существует. */
+
+function readU16(dv, o) { return dv.getUint16(o, true); }
+function readU32(dv, o) { return dv.getUint32(o, true); }
+
+/* Разбор ZIP через центральный каталог — надёжнее, чем скан локальных
+ * заголовков: у последних размеры могут лежать в data descriptor после данных. */
+function zipEntries(buf) {
+  const dv = new DataView(buf);
+  const bytes = new Uint8Array(buf);
+
+  // End of Central Directory: сигнатура PK\x05\x06, ищем с конца
+  let eocd = -1;
+  for (let i = bytes.length - 22; i >= 0 && i >= bytes.length - 65558; i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error('файл не похож на .xlsx (не найден каталог ZIP)');
+
+  const count = readU16(dv, eocd + 10);
+  let p = readU32(dv, eocd + 16);
+  const entries = {};
+  const dec = new TextDecoder('utf-8');
+
+  for (let i = 0; i < count; i++) {
+    if (dv.getUint32(p, true) !== 0x02014b50) break;
+    const method = readU16(dv, p + 10);
+    const compSize = readU32(dv, p + 20);
+    const nameLen = readU16(dv, p + 28);
+    const extraLen = readU16(dv, p + 30);
+    const commentLen = readU16(dv, p + 32);
+    const localOff = readU32(dv, p + 42);
+    const name = dec.decode(bytes.subarray(p + 46, p + 46 + nameLen));
+
+    // у локального заголовка своя длина имени и extra — данные считаем от неё
+    const lNameLen = readU16(dv, localOff + 26);
+    const lExtraLen = readU16(dv, localOff + 28);
+    const dataStart = localOff + 30 + lNameLen + lExtraLen;
+
+    entries[name] = { method, data: bytes.subarray(dataStart, dataStart + compSize) };
+    p += 46 + nameLen + extraLen + commentLen;
+  }
+  return entries;
+}
+
+async function inflateEntry(entry) {
+  if (entry.method === 0) return new TextDecoder('utf-8').decode(entry.data);
+  if (entry.method !== 8) throw new Error('неподдерживаемое сжатие в .xlsx');
+  if (typeof DecompressionStream === 'undefined') {
+    throw new Error('браузер не умеет распаковывать .xlsx — сохраните файл как CSV');
+  }
+  const stream = new Blob([entry.data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  return new Response(stream).text();
+}
+
+function colToIndex(ref) {           // "AB12" → 27 (0-based номер колонки)
+  const m = /^([A-Z]+)/.exec(ref || '');
+  if (!m) return 0;
+  let n = 0;
+  for (const ch of m[1]) n = n * 26 + (ch.charCodeAt(0) - 64);
+  return n - 1;
+}
+
+async function parseXlsx(buf) {
+  const entries = zipEntries(buf);
+
+  // общий словарь строк: ячейки с t="s" ссылаются на него по индексу
+  let shared = [];
+  if (entries['xl/sharedStrings.xml']) {
+    const xml = new DOMParser().parseFromString(await inflateEntry(entries['xl/sharedStrings.xml']), 'application/xml');
+    shared = Array.from(xml.getElementsByTagName('si')).map((si) =>
+      Array.from(si.getElementsByTagName('t')).map((t) => t.textContent).join(''));
+  }
+
+  // берём первый лист по порядку файлов
+  const sheetName = Object.keys(entries)
+    .filter((n) => /^xl\/worksheets\/sheet\d+\.xml$/.test(n))
+    .sort()[0];
+  if (!sheetName) throw new Error('в файле не найден лист с данными');
+
+  const doc = new DOMParser().parseFromString(await inflateEntry(entries[sheetName]), 'application/xml');
+  if (doc.getElementsByTagName('parsererror').length) throw new Error('повреждённый .xlsx');
+
+  const rows = [];
+  for (const rowEl of Array.from(doc.getElementsByTagName('row'))) {
+    const cells = [];
+    for (const c of Array.from(rowEl.getElementsByTagName('c'))) {
+      const idx = colToIndex(c.getAttribute('r'));
+      const type = c.getAttribute('t');
+      let value = '';
+      if (type === 'inlineStr') {
+        value = Array.from(c.getElementsByTagName('t')).map((t) => t.textContent).join('');
+      } else {
+        const v = c.getElementsByTagName('v')[0];
+        const raw = v ? v.textContent : '';
+        value = type === 's' ? (shared[parseInt(raw, 10)] || '') : raw;
+      }
+      while (cells.length < idx) cells.push('');   // пропущенные ячейки — пустые
+      cells[idx] = value == null ? '' : String(value);
+    }
+    rows.push(cells);
+  }
+  return rows.filter((r) => r.some((c) => String(c).trim() !== ''));
 }
 
 /* --- сопоставление колонок ---------------------------------------------
@@ -322,8 +443,8 @@ function buildRow(row, map, lineNo) {
 
 /* --- разбор всего файла ------------------------------------------------- */
 
-function parseImport(text) {
-  const rows = parseCsv(text);
+function parseImport(input) {
+  const rows = typeof input === 'string' ? parseCsv(input) : input;
   if (rows.length < 2) throw new Error('в файле нет строк с данными (нужна шапка + хотя бы одна строка)');
 
   const { map, unknown } = mapHeaders(rows[0]);
@@ -339,7 +460,7 @@ function parseImport(text) {
 
 if (typeof window !== 'undefined') {
   Object.assign(window, {
-    parseCsv, parseImport, buildRow, readCsvFile, mapHeaders,
-    expensesFor, deliveryFor, findAuctionIndex,
+    parseCsv, parseImport, buildRow, readImportFile, mapHeaders,
+    expensesFor, deliveryFor, findAuctionIndex, parseXlsx, zipEntries,
   });
 }
