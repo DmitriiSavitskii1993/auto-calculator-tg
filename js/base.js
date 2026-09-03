@@ -75,6 +75,7 @@ function collectVehicle() {
     model: val('#model'),
     trim: val('#trimName'),
     year: int('#year'),
+    month: int('#monthOut'),
     mileage_km: int('#mileage'),
     body: val('#body'),
     drive: val('#drive'),
@@ -253,18 +254,143 @@ function renderExtractReview(res) {
   $('#extractReview').classList.remove('hidden');
 }
 
-/* возраст авто по году/месяцу выпуска → значение #age (то же деление, что в CALC_DATA.ageOptions) */
-function ageBandFrom(year, month) {
-  if (!year) return null;
-  const now = new Date();
-  let months = (now.getFullYear() - year) * 12 + ((now.getMonth() + 1) - (month || (now.getMonth() + 1)));
-  if (months < 0) months = 0;
-  const years = months / 12;
-  if (state.isElectric) return years < 3 ? '<3' : '>3';
+/* =========================================================================
+ *  Возраст авто — то, от чего пошлина зависит сильнее всего.
+ *
+ *  Граница между категориями стоит дорого: для 1500 см³ «3-5 лет» — это
+ *  1.7 €/см³, а «5-7» — уже 3.2 €/см³, почти вдвое. Поэтому месяц выпуска
+ *  нельзя домысливать: у авто 2021 года январский и октябрьский выпуск
+ *  сегодня попадают в РАЗНЫЕ категории.
+ * ========================================================================= */
+
+const MONTHS_NOM = ['январь','февраль','март','апрель','май','июнь',
+                    'июль','август','сентябрь','октябрь','ноябрь','декабрь'];
+const MONTHS_SHORT = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+
+function _bandForAgeMonths(months, isElectric) {
+  const years = Math.max(0, months) / 12;
+  if (isElectric) return years < 3 ? '<3' : '>3';
   if (years < 3) return '<3';
   if (years < 5) return '3-5';
   if (years < 7) return '5-7';
   return '>7';
+}
+
+/* Подробности по возрасту: категория, точный возраст, дата перехода
+ * в следующую категорию и признак неоднозначности, если месяц не указан. */
+function ageInfo(year, month, isElectric) {
+  if (!year) return null;
+  if (isElectric === undefined) isElectric = state.isElectric;
+
+  const now = new Date();
+  const nowIdx = now.getFullYear() * 12 + (now.getMonth() + 1);
+  const bandFor = (m) => _bandForAgeMonths(nowIdx - (year * 12 + m), isElectric);
+
+  if (!month) {
+    // Январь даёт самое старое авто, декабрь — самое молодое. Если категории
+    // расходятся, угадывать нельзя: разница в пошлине — сотни тысяч.
+    const oldest = bandFor(1), youngest = bandFor(12);
+    if (oldest !== youngest) {
+      let cut = 12;
+      for (let m = 1; m <= 12; m++) { if (bandFor(m) !== oldest) { cut = m; break; } }
+      return { ambiguous: true, band: oldest, bandYoung: youngest, cutMonth: cut, year };
+    }
+    return { ambiguous: false, band: oldest, ageMonths: nowIdx - (year * 12 + 6), approx: true };
+  }
+
+  const ageMonths = Math.max(0, nowIdx - (year * 12 + month));
+  const band = _bandForAgeMonths(ageMonths, isElectric);
+
+  // ближайший порог, который авто ещё не перешло
+  const thresholds = isElectric ? [36] : [36, 60, 84];
+  const next = thresholds.find((t) => ageMonths < t);
+  let boundary = null;
+  if (next != null) {
+    const absolute = (year * 12 + month) + next;            // месяц-индекс перехода
+    boundary = {
+      monthsLeft: next - ageMonths,
+      year: Math.floor((absolute - 1) / 12),
+      month: ((absolute - 1) % 12) + 1,
+      nextBand: _bandForAgeMonths(next, isElectric),
+    };
+  }
+  return { ambiguous: false, band, ageMonths, boundary };
+}
+
+/* Обратная совместимость: только категория. */
+function ageBandFrom(year, month) {
+  const info = ageInfo(year, month);
+  return info ? info.band : null;
+}
+
+function ageWord(months) {
+  const y = Math.floor(months / 12), m = months % 12;
+  const yw = y === 0 ? '' : y + ' ' + (y % 10 === 1 && y % 100 !== 11 ? 'год'
+    : (y % 10 >= 2 && y % 10 <= 4 && (y % 100 < 10 || y % 100 >= 20) ? 'года' : 'лет'));
+  const mw = m === 0 ? '' : m + ' мес.';
+  return [yw, mw].filter(Boolean).join(' ') || 'меньше месяца';
+}
+
+/* Год или месяц изменились: подставляем категорию, но только если она
+ * однозначна. При неоднозначности поле не трогаем — пусть решает человек,
+ * а подсказка объяснит, почему. */
+function syncAgeFromYear() {
+  const year = parseInt(($('#year') || {}).value, 10);
+  const monthEl = $('#monthOut');
+  const month = monthEl && monthEl.value ? parseInt(monthEl.value, 10) : null;
+  const info = year ? ageInfo(year, month) : null;
+  if (info && !info.ambiguous && $('#age')) {
+    const has = Array.prototype.some.call($('#age').options, (o) => o.value === info.band);
+    if (has) $('#age').value = info.band;
+  }
+  renderAgeHint();
+}
+
+/* Подсказка под полем «Возраст авто». Показывает, на чём основана категория
+ * и когда она поменяется — чтобы граница не всплыла сюрпризом на таможне. */
+function renderAgeHint() {
+  const el = $('#ageHint');
+  if (!el) return;
+  const year = parseInt(($('#year') || {}).value, 10);
+  const monthEl = $('#monthOut');
+  const month = monthEl && monthEl.value ? parseInt(monthEl.value, 10) : null;
+
+  if (!year) {
+    el.innerHTML = '<span style="color:var(--hint)">Укажите год выпуска — категория подставится сама.</span>';
+    return;
+  }
+  const info = ageInfo(year, month);
+  if (!info) { el.textContent = ''; return; }
+
+  const BAND_RU = { '<3': 'до 3 лет', '3-5': '3–5 лет', '5-7': '5–7 лет', '>7': 'старше 7', '>3': 'старше 3' };
+
+  if (info.ambiguous) {
+    const cut = info.cutMonth;
+    const first = MONTHS_NOM[0], last = MONTHS_NOM[11];
+    const leftEnd = MONTHS_NOM[cut - 2];        // последний месяц старой категории
+    const rightStart = MONTHS_NOM[cut - 1];     // первый месяц новой
+    el.innerHTML =
+      '<span style="color:#e6a23c">⚠️ Месяц не указан, а ' + info.year +
+      ' год — переходный.</span><br>' +
+      'Выпуск ' + first + '–' + leftEnd + ' → категория <b>' + BAND_RU[info.band] + '</b>, ' +
+      rightStart + '–' + last + ' → <b>' + BAND_RU[info.bandYoung] + '</b>. ' +
+      'Разница в пошлине существенная — укажите месяц.';
+    return;
+  }
+
+  let html = 'Возраст: <b>' + ageWord(info.ageMonths) + '</b> → категория <b>' + BAND_RU[info.band] + '</b>.';
+  if (info.approx) {
+    html += ' <span style="color:var(--hint)">Месяц не указан, но в этом году он на категорию не влияет.</span>';
+  }
+  if (info.boundary) {
+    const b = info.boundary;
+    const when = MONTHS_SHORT[b.month - 1] + ' ' + b.year;
+    const soon = b.monthsLeft <= 6;
+    html += '<br>' + (soon ? '<span style="color:#e6a23c">⏳ ' : '<span style="color:var(--hint)">') +
+      'Через ' + ageWord(b.monthsLeft) + ' (' + when + ') перейдёт в <b>' + BAND_RU[b.nextBand] + '</b>' +
+      (b.nextBand === '<3' ? '' : ' — пошлина вырастет') + '.</span>';
+  }
+  el.innerHTML = html;
 }
 
 /* заполнить форму калькулятора и характеристик по результату распознавания */
@@ -289,6 +415,7 @@ function applyExtraction(x) {
     else el.classList.remove('needs-check');
   };
 
+  setVal('#monthOut', f.month, 'month');
   const band = ageBandFrom(f.year, f.month);
   if (band && $('#age') && Array.prototype.some.call($('#age').options, (o) => o.value === band)) {
     $('#age').value = band;
@@ -329,6 +456,7 @@ function applyExtraction(x) {
   setVal('#drive', f.drive, 'drive');
   setVal('#trans', f.transmission, 'transmission');
   if (!state.isElectric) setVal('#fuel', f.fuel, 'fuel');
+  renderAgeHint();
   setVal('#color', f.color, 'color');
   setVal('#grade', f.auction_grade, 'auction_grade');
   setVal('#interiorGrade', f.interior_grade, 'interior_grade');
@@ -868,6 +996,18 @@ function initBase() {
       showScreen('screenImport');
     });
   }
+  // год/месяц выпуска меняют категорию возраста — пересчитываем подсказку
+  // и подставляем категорию, если она однозначна
+  const vc = $('#cardVehicle');
+  if (vc) {
+    vc.addEventListener('input', (e) => {
+      if (e.target.id === 'year') syncAgeFromYear();
+    });
+    vc.addEventListener('change', (e) => {
+      if (e.target.id === 'year' || e.target.id === 'monthOut') syncAgeFromYear();
+    });
+  }
+
   bindBaseEvents();
   bindExtractEvents();
   bindImportEvents();
@@ -880,5 +1020,6 @@ if (typeof window !== 'undefined') {
     ratesSnapshot, collectVehicle, applyExtraction, ageBandFrom, runExtraction,
     handleImportFile, runImport, resetImportScreen, renderImportPreview,
     applyPasted, recalcVisible, rateStaleness,
+    ageInfo, renderAgeHint, syncAgeFromYear,
   });
 }
