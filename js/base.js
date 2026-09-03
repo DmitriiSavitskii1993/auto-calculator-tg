@@ -976,6 +976,7 @@ function carCardHtml(c) {
         foreign +
         '<div class="car-badges">' + utilBadge + staleBadge + statusBadge + '</div>' +
         '<div class="car-actions">' +
+          '<button class="mini-btn" data-act="offer" data-id="' + c.id + '">📄 Клиенту</button>' +
           '<button class="mini-btn" data-act="photos" data-id="' + c.id + '">📷 Фото</button>' +
           '<button class="mini-btn" data-act="sold" data-id="' + c.id + '">✅ Продано</button>' +
           '<button class="mini-btn" data-act="del" data-id="' + c.id + '">🗑</button>' +
@@ -1002,22 +1003,41 @@ const TG_MESSAGE_LIMIT = 4096;
 function formatRules(fmt) {
   if (fmt === 'md') {
     return [
-      'Разметка — MarkdownV2 (Telegram):',
+      'ФОРМАТ ОТВЕТА',
+      'Верни ТОЛЬКО готовый пост целиком, одним блоком кода.',
+      'Ни вступления, ни пояснений, ни комментариев после — я копирую',
+      'содержимое блока и публикую как есть.',
+      '',
+      'Весь пост размечен в MarkdownV2 (Telegram):',
       '- *жирный*, _курсив_, цитата — строка, начинающаяся с «>»;',
       '- спецсимволы вне разметки экранируй обратным слэшем:',
       '  . - ! ( ) + = # | { } ~ ` > _ *  — иначе Telegram не примет пост;',
-      '- в числах и датах точки и дефисы тоже экранируются: 1\\.5, 2021\\-й.',
+      '- в числах и датах точки и дефисы тоже экранируются: 1\\.5, 2021\\-й;',
+      '- HTML-теги не используй вообще.',
     ].join('\n');
   }
   return [
-    'Разметка — HTML (Telegram):',
-    '- <b>жирный</b>, <i>курсив</i>, <blockquote>цитата</blockquote>;',
+    'ФОРМАТ ОТВЕТА',
+    'Верни ТОЛЬКО готовый пост целиком, одним блоком кода.',
+    'Ни вступления, ни пояснений, ни комментариев после — я копирую',
+    'содержимое блока и публикую как есть, без правок.',
+    '',
+    'ВЕСЬ ПОСТ — РАЗМЕЧЕННЫЙ HTML для Telegram. Не Markdown.',
+    'Разрешённые теги, других нет:',
+    '  <b>жирный</b>, <i>курсив</i>, <u>подчёркнутый</u>, <s>зачёркнутый</s>,',
+    '  <a href="ссылка">текст</a>, <code>моноширинный</code>,',
+    '  <blockquote>цитата</blockquote>',
+    '',
+    '- НЕ используй Markdown: ни **звёздочки**, ни ## заголовки, ни _подчерки_.',
+    '  В Telegram они останутся видимым мусором;',
+    '- НЕ используй <p>, <br>, <div>, <ul>, <li>, <h1>: Telegram их не понимает',
+    '  и покажет как текст. Абзацы и списки делай обычными переносами строк,',
+    '  списки — через эмодзи или дефис в начале строки;',
+    '- символы < > & вне тегов экранируй: &lt; &gt; &amp;;',
     '- ВАЖНО про цитату: пиши <blockquote>текст</blockquote> без пробелов',
     '  и переносов сразу после открывающего и перед закрывающим тегом,',
     '  и без пустой строки перед цитатой — иначе в посте появится лишний',
-    '  отступ. Нужный перенос система добавит сама;',
-    '- другие теги (<p>, <br>, <ul>, заголовки) не используй — Telegram их',
-    '  не понимает и покажет как текст.',
+    '  отступ. Нужный перенос система добавит сама.',
   ].join('\n');
 }
 
@@ -1033,6 +1053,7 @@ function postPrompt(fmt, withPhoto) {
   return [
     'Напиши пост-подборку для Telegram-канала об автомобилях под заказ из Японии.',
     'Компания WESTTRANSIT (WT), Владивосток: привозим авто под ключ до города клиента.',
+    'Пост публикуется через сервис автопостинга, поэтому важен точный формат.',
     '',
     formatRules(fmt),
     '',
@@ -1110,6 +1131,101 @@ function buildSelectionText(cars, withPrompt, opts) {
   const fmt = opts.format || 'html';
   const withPhoto = opts.withPhoto !== false;
   return postPrompt(fmt, withPhoto) + head.trim() + '\n\n' + body + '\n';
+}
+
+/* =========================================================================
+ *  КП клиенту по одной машине.
+ *
+ *  Отличается от поста в канал по существу: каналу нужен крючок, клиенту —
+ *  доверие. Поэтому здесь разбивка цены и этапы оплаты: по GTM-документу
+ *  главная боль рынка — страх «кинут» и скрытые доплаты, и прозрачная
+ *  смета закрывает её лучше любых обещаний.
+ *
+ *  Обычный текст, без разметки: уходит в личку через любой мессенджер,
+ *  а HTML там не отрисуется.
+ * ========================================================================= */
+function buildClientOffer(car) {
+  const r = car.calc_result || {};
+  const L = [];
+  const trim = (car.trim && String(car.trim).trim()) || 'BASE';
+  const when = car.year ? car.year + (car.month ? ' (' + String(car.month).padStart(2, '0') + ')' : '') : '';
+
+  L.push('🚗 ' + [car.make, car.model, trim].filter(Boolean).join(' ') + (when ? ', ' + when : ''));
+
+  const spec = [
+    BODY_RU[car.body] || car.body,
+    DRIVE_RU[car.drive] || car.drive,
+    TRANS_RU[car.transmission] || car.transmission,
+    car.is_electric ? 'электро' : (FUEL_RU[car.fuel] || car.fuel),
+  ].filter(Boolean).join(' · ');
+  if (spec) L.push(spec);
+
+  const tech = [
+    car.mileage_km != null ? 'пробег ' + fmtNum(car.mileage_km) + ' км' : null,
+    car.volume_cc ? car.volume_cc + ' см³' : null,
+    car.power_hp ? car.power_hp + ' л.с.' : null,
+  ].filter(Boolean).join(' · ');
+  if (tech) L.push(tech);
+
+  if (car.auction_grade) {
+    L.push('Оценка аукциона: ' + car.auction_grade +
+      (car.interior_grade ? ', салон ' + car.interior_grade : ''));
+  }
+
+  // Город в шапке — только если логистика по РФ действительно посчитана.
+  // Иначе клиент прочтёт «под ключ до города», а доставки в сумме нет:
+  // в пресетах rf_logistics по умолчанию 0 и заполняется вручную.
+  const hasRfLogistics = (r.logistics || 0) > 0;
+  L.push('');
+  L.push('💰 ПОД КЛЮЧ' + (hasRfLogistics && car.logistics_city ? ', ' + car.logistics_city : ' во Владивостоке') +
+    ': ' + money(car.price_rub_total));
+  L.push('');
+
+  // Разбивка: те же четыре блока, что и в расчёте на экране
+  const foreign = (r.carCostRub || 0) + (r.bankFee || 0);
+  const services = (r.expensesSum || 0) + (r.commission || 0);
+  L.push('Что входит в сумму:');
+  if (foreign) L.push('• Авто с аукциона, доставка и фрахт — ' + money(foreign));
+  if (r.customsTotal) L.push('• Таможня: пошлина, сбор, утильсбор — ' + money(r.customsTotal));
+  if (services) L.push('• Оформление и услуги в РФ — ' + money(services));
+  if (hasRfLogistics) {
+    L.push('• Доставка по России' + (car.logistics_city ? ' до города ' + car.logistics_city : '') +
+      ' — ' + money(r.logistics));
+  } else {
+    L.push('');
+    L.push('Доставка по России в сумму не входит — посчитаем отдельно' +
+      (car.logistics_city ? ' до города ' + car.logistics_city : ' до вашего города') + '.');
+  }
+
+  // Этапы оплаты — то, ради чего клиент и читает КП: видно, когда и за что платить
+  const stages = (r.stages || []).filter((s) => s && s.value > 0);
+  if (stages.length) {
+    L.push('');
+    L.push('Как проходит оплата:');
+    stages.forEach((s, i) => L.push(`${i + 1}) ${s.label} — ${money(s.value)}`));
+  }
+
+  // Льготный утиль — сильный и проверяемый аргумент, а не маркетинг
+  if (r.utilPreferentialApplied === true && r.utilThresholdHp) {
+    L.push('');
+    L.push('✅ Мощность ' + Math.round(r.input && r.input.powerHp || car.power_hp) +
+      ' л.с. — в пределах льготного порога ' + r.utilThresholdHp + ' л.с.');
+    L.push('   Утильсбор льготный: ' + money(r.utilFee) +
+      '. У авто мощнее порога он вырос бы в десятки раз.');
+  } else if (r.utilPreferentialApplied === false && r.utilFee) {
+    L.push('');
+    L.push('ℹ️ Утильсбор ' + money(r.utilFee) + ' — мощность выше льготного порога ' +
+      (r.utilThresholdHp || 160) + ' л.с. Он уже учтён в сумме выше.');
+  }
+
+  const rateDate = (car.rates_snapshot || {}).cbr_date;
+  const when2 = rateDate ? new Date(rateDate).toLocaleDateString('ru-RU') : new Date().toLocaleDateString('ru-RU');
+  L.push('');
+  L.push('Расчёт по курсу на ' + when2 + '. Предварительный, справочный,');
+  L.push('не является публичной офертой: итоговые платежи определяет');
+  L.push('таможенный орган на дату оформления.');
+
+  return L.join('\n');
 }
 
 function selectedCars() {
@@ -1232,6 +1348,21 @@ async function baseCardAction(act, id, btn) {
       await wtApi.updateCar(id, { status: 'sold' });
       toast('Отмечено как проданное');
       loadBase();
+    } else if (act === 'offer') {
+      // calc_result приходит только в детальной карточке — в списке его нет
+      if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+      try {
+        const full = await wtApi.getCar(id);
+        const ok = await copyToClipboard(buildClientOffer(full));
+        haptic(ok ? 'medium' : 'light');
+        toast(ok ? '📄 КП скопировано — вставьте клиенту в переписку'
+                 : 'Не удалось скопировать');
+        if (btn) btn.textContent = ok ? '✅ Готово' : '📄 Клиенту';
+        setTimeout(() => { if (btn) { btn.textContent = '📄 Клиенту'; btn.disabled = false; } }, 1600);
+      } catch (e) {
+        if (btn) { btn.textContent = '📄 Клиенту'; btn.disabled = false; }
+        throw e;
+      }
     } else if (act === 'photos') {
       const input = $('#basePhotoInput');
       if (!input) return;
@@ -1406,6 +1537,6 @@ if (typeof window !== 'undefined') {
     ageInfo, renderAgeHint, syncAgeFromYear,
     buildSelectionText, copySelection, selectedCars, renderSelectionBar,
     postPrompt, EXTRACT_PROMPT, copyExtractPrompt, carToPostLines,
-    setExtractPhoto, pasteImageFromClipboard,
+    setExtractPhoto, pasteImageFromClipboard, buildClientOffer,
   });
 }
