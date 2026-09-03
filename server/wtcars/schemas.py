@@ -148,6 +148,13 @@ class CarOut(BaseModel):
 
     price_foreign: float | None = None
     currency: str | None = None
+    # валютные суммы до перевода в рубли — по ним карточка пересчитывается точно
+    delivery_foreign: float | None = None
+    foreign_total: float | None = None
+    duty_eur: float | None = None
+    duty_eur_per_cc: float | None = None
+    customs_value_eur: float | None = None
+    excise_units: float | None = None
     price_rub_total: int | None = None
     util_fee: int | None = None
     util_preferential: bool | None = None

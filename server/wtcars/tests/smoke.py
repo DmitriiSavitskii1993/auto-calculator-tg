@@ -148,6 +148,40 @@ def main() -> int:
                 car["power_hp"] == round(float(fx["calc_result"]["input"]["powerHp"])),
                 f"в базе {car['power_hp']}",
             )
+        print("\n3b. Суммы в валюте сохранены до перевода в рубли")
+        for fx, car in created:
+            cr = fx["calc_result"]
+            name = fx["vehicle"]["model"]
+            check(
+                f"цена в валюте ({name})",
+                car["price_foreign"] == cr["carPriceForeign"],
+                f'{car["price_foreign"]} {car["currency"]}',
+            )
+            check(
+                f"доставка в валюте ({name})",
+                car["delivery_foreign"] == cr["deliveryForeign"],
+                str(car["delivery_foreign"]),
+            )
+            check(
+                f"цена+доставка в валюте ({name})",
+                car["foreign_total"] == cr["foreignTotal"],
+            )
+            check(
+                f"таможенная стоимость в евро ({name})",
+                car["customs_value_eur"] is not None
+                and abs(car["customs_value_eur"] - cr["customsValueEur"]) < 0.01,
+                str(car["customs_value_eur"]),
+            )
+        jp = [c_ for f, c_ in created if f["calc_result"]["currency"] == "JPY"]
+        check("пошлина в евро сохранена (ДВС, ставка €/см³)",
+              all(c_["duty_eur"] and c_["duty_eur_per_cc"] for c_ in jp),
+              ", ".join(f'{c_["duty_eur"]}€ по {c_["duty_eur_per_cc"]}€/см³' for c_ in jp))
+        ev_card = [c_ for f, c_ in created if f["vehicle"].get("fuel") == "ev"][0]
+        check("у EV пошлина в евро пустая (она % от рублёвой стоимости)",
+              ev_card["duty_eur"] is None)
+        check("у EV сохранена база акциза", ev_card["excise_units"] is not None,
+              str(ev_card["excise_units"]))
+
         ev = [c_ for f, c_ in created if f["vehicle"].get("fuel") == "ev"][0]
         check("электрокар помечен is_electric", ev["is_electric"] is True)
         check("порог утиля для EV = 80 л.с.", ev["util_threshold_hp"] == 80)

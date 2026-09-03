@@ -96,6 +96,10 @@ function calcDutyBlock(cfg, p) {
     return {
       duty, excise, vat, customsFee,
       total: duty + excise + vat + customsFee,
+      // пошлина EV — процент от рублёвой таможенной стоимости, в евро не считается
+      dutyEur: null, dutyEurPerCc: null,
+      exciseUnits,                          // база акциза: кВт / 0.75
+      exciseRubPerUnit: exRow.rub,          // ставка НК РФ за единицу
       method: `Электрокар: пошлина ${(cfg.evDutyPercent * 100).toFixed(0)}% + акциз + НДС ${(cfg.evVatPercent * 100).toFixed(0)}%`,
     };
   }
@@ -107,10 +111,17 @@ function calcDutyBlock(cfg, p) {
     const byPercent = b.percent * p.customsValueRub;
     const byCc      = b.eurPerCc * p.volumeCc * cbrEur;
     const duty = Math.max(byPercent, byCc);
+    const wonByPercent = byPercent >= byCc;
     return {
       duty, excise: 0, vat: 0, customsFee,
       total: duty + customsFee,
-      method: byPercent >= byCc
+      // если победила ставка €/см³ — пошлина по природе своей в евро,
+      // и её надо хранить в евро: иначе при смене курса ЦБ карточку
+      // не пересчитать точно, останется только рублёвый слепок
+      dutyEur: wonByPercent ? null : b.eurPerCc * p.volumeCc,
+      dutyEurPerCc: wonByPercent ? null : b.eurPerCc,
+      exciseUnits: null, exciseRubPerUnit: null,
+      method: wonByPercent
         ? `${(b.percent * 100).toFixed(0)}% от стоимости`
         : `${b.eurPerCc} €/см³`,
     };
@@ -123,6 +134,9 @@ function calcDutyBlock(cfg, p) {
   return {
     duty, excise: 0, vat: 0, customsFee,
     total: duty + customsFee,
+    dutyEur: b.eurPerCc * p.volumeCc,   // ставка ЕТС задана в евро — храним в евро
+    dutyEurPerCc: b.eurPerCc,
+    exciseUnits: null, exciseRubPerUnit: null,
     method: `${b.eurPerCc} €/см³`,
   };
 }
@@ -227,6 +241,18 @@ function calculate(input, cfg) {
     bankFee,
     customsValueRub,
     customsValueEur,
+    /* --- суммы в исходной валюте, ДО перевода в рубли ---
+     * Рубли зависят от курса на день расчёта, валютные величины — нет.
+     * Храним их, чтобы карточку можно было точно пересчитать на любой
+     * другой курс, а не хранить рублёвый слепок с «примерными» цифрами. */
+    currency: { jp: 'JPY', kr: 'KRW', cn: 'CNY' }[input.country] || null,
+    carPriceForeign: input.carPrice || 0,       // цена авто в валюте страны
+    deliveryForeign: input.deliveryForeign || 0, // доставка + фрахт в валюте
+    // foreignTotal (цена + доставка в валюте) уже отдаётся выше
+    dutyEur: duty.dutyEur,                      // пошлина в евро (ставка ЕТС €/см³)
+    dutyEurPerCc: duty.dutyEurPerCc,            // сама ставка, €/см³
+    exciseUnits: duty.exciseUnits,              // база акциза EV (кВт / 0.75)
+    exciseRubPerUnit: duty.exciseRubPerUnit,
     duty: duty.duty,
     dutyMethod: duty.method,
     excise: duty.excise,

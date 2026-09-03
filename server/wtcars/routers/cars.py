@@ -71,6 +71,24 @@ def _apply_calc(car: Car, payload: CarCreate) -> None:
     car.power_hp = _int_or_none(ri.get("powerHp"))
     car.power_kw = _int_or_none(ri.get("powerKw"))
 
+    # валютные суммы: их курс не размывает, по ним карточка пересчитывается точно
+    def _dec(v):
+        try:
+            return None if v is None else float(v)
+        except (TypeError, ValueError):
+            return None
+
+    car.delivery_foreign = _dec(cr.get("deliveryForeign") or ri.get("deliveryForeign"))
+    car.foreign_total = _dec(cr.get("foreignTotal"))
+    car.duty_eur = _dec(cr.get("dutyEur"))
+    car.duty_eur_per_cc = _dec(cr.get("dutyEurPerCc"))
+    car.customs_value_eur = _dec(cr.get("customsValueEur"))
+    car.excise_units = _dec(cr.get("exciseUnits"))
+    if car.price_foreign is None:
+        car.price_foreign = _dec(cr.get("carPriceForeign") or ri.get("carPrice"))
+    if not car.currency:
+        car.currency = cr.get("currency") or None
+
     car.price_rub_total = _int_or_none(cr.get("grandTotal"))
     car.util_fee = _int_or_none(cr.get("utilFee"))
     car.util_preferential = (
@@ -123,8 +141,11 @@ def _car_out(car: Car, owner: Owner, detailed: bool = False):
         for c in Car.__table__.columns
         if c.name in cls.model_fields
     }
-    if car.price_foreign is not None:
-        data["price_foreign"] = float(car.price_foreign)
+    # Numeric приходит из базы как Decimal — приводим к float явно
+    for f in ("price_foreign", "delivery_foreign", "foreign_total",
+              "duty_eur", "duty_eur_per_cc", "customs_value_eur", "excise_units"):
+        if data.get(f) is not None:
+            data[f] = float(data[f])
     data["photos"] = _photos_out(car, owner.telegram_id)
     return cls(**data)
 

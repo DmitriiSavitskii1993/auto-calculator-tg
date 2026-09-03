@@ -108,6 +108,17 @@ class Car(Base):
     # --- фильтруемое: деньги ---
     price_foreign: Mapped[float | None] = mapped_column(Numeric(14, 2))
     currency: Mapped[str | None] = mapped_column(String(3))             # JPY|KRW|CNY
+
+    # --- суммы в исходной валюте, ДО перевода в рубли ---
+    # Рубли зависят от курса на день расчёта, эти величины — нет. Храним их,
+    # чтобы карточку можно было точно пересчитать на любой курс, а не держать
+    # рублёвый слепок, который к следующей неделе становится приблизительным.
+    delivery_foreign: Mapped[float | None] = mapped_column(Numeric(14, 2))
+    foreign_total: Mapped[float | None] = mapped_column(Numeric(14, 2))  # цена + доставка
+    duty_eur: Mapped[float | None] = mapped_column(Numeric(12, 2))       # пошлина в евро
+    duty_eur_per_cc: Mapped[float | None] = mapped_column(Numeric(8, 3)) # ставка ЕТС, €/см³
+    customs_value_eur: Mapped[float | None] = mapped_column(Numeric(14, 2))
+    excise_units: Mapped[float | None] = mapped_column(Numeric(10, 3))   # база акциза EV
     price_rub_total: Mapped[int | None] = mapped_column(BigInteger)     # = result.grandTotal
     util_fee: Mapped[int | None] = mapped_column(BigInteger)
     util_preferential: Mapped[bool | None] = mapped_column(Boolean)     # ≤160 л.с. / ≤80 кВт
