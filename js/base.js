@@ -295,6 +295,66 @@ function applyPasted() {
   }
 }
 
+/* Один путь для всех способов выбора скрина: файл, буфер, перетаскивание. */
+function setExtractPhoto(file, how) {
+  if (!file || !String(file.type || '').startsWith('image/')) {
+    toast('Это не картинка');
+    return;
+  }
+  extractFile = file;
+  // без ключа ИИ распознавать нечем, но скрин всё равно нужен —
+  // он прикрепится к карточке при сохранении в базу
+  pendingCarPhoto = file;
+
+  const img = $('#extractPreview');
+  const reader = new FileReader();
+  reader.onload = () => {
+    if (!img) return;
+    img.src = reader.result;
+    img.classList.remove('hidden');
+    const dt = $('#extractDropText');
+    if (dt) dt.classList.add('hidden');
+  };
+  reader.readAsDataURL(file);
+
+  const runBtn = $('#btnExtractRun');
+  if (runBtn) runBtn.disabled = false;
+  const note = $('#extractPhotoNote');
+  if (note) {
+    const kb = Math.round(file.size / 1024);
+    note.textContent = '📎 Скрин' + (how ? ' (' + how + ')' : '') +
+      ' — ' + kb + ' КБ, прикрепится к карточке при сохранении в базу.';
+  }
+  const rev = $('#extractReview');
+  if (rev) rev.classList.add('hidden');
+  haptic('light');
+}
+
+/* Кнопка «из буфера»: читаем буфер напрямую. Работает не везде —
+ * нужен защищённый контекст и разрешение, поэтому падение не фатально,
+ * подсказываем горячие клавиши. */
+async function pasteImageFromClipboard(btn) {
+  if (!navigator.clipboard || !navigator.clipboard.read) {
+    toast('Браузер не даёт читать буфер — нажмите Cmd+V (Ctrl+V) прямо здесь');
+    return;
+  }
+  try {
+    const items = await navigator.clipboard.read();
+    for (const item of items) {
+      const type = (item.types || []).find((t) => t.startsWith('image/'));
+      if (type) {
+        const blob = await item.getType(type);
+        const ext = type.split('/')[1] || 'png';
+        setExtractPhoto(new File([blob], 'screenshot.' + ext, { type }), 'из буфера');
+        return;
+      }
+    }
+    toast('В буфере нет картинки — сначала сделайте скриншот');
+  } catch (e) {
+    toast('Не вышло прочитать буфер — нажмите Cmd+V (Ctrl+V) прямо здесь');
+  }
+}
+
 function resetExtractScreen() {
   extractFile = null;
   lastExtraction = null;
@@ -592,23 +652,41 @@ function bindExtractEvents() {
   if (fileInput) {
     fileInput.addEventListener('change', (e) => {
       const file = e.target.files && e.target.files[0];
-      if (!file) return;
-      extractFile = file;
-      // без ключа ИИ распознавать нечем, но скрин всё равно нужен —
-      // он прикрепится к карточке при сохранении в базу
-      pendingCarPhoto = file;
-      const img = $('#extractPreview');
-      const reader = new FileReader();
-      reader.onload = () => {
-        img.src = reader.result;
-        img.classList.remove('hidden');
-        $('#extractDropText').classList.add('hidden');
-      };
-      reader.readAsDataURL(file);
-      $('#btnExtractRun').disabled = false;
-      const note = $('#extractPhotoNote');
-      if (note) note.textContent = '📎 Скрин прикрепится к карточке при сохранении в базу.';
-      $('#extractReview').classList.add('hidden');
+      if (file) setExtractPhoto(file);
+    });
+  }
+
+  // Cmd+V / Ctrl+V прямо на экране: скриншот из буфера, без сохранения на диск.
+  // Слушаем на всём экране, а не только на поле — фокус чаще всего в textarea.
+  screen.addEventListener('paste', (e) => {
+    const items = (e.clipboardData && e.clipboardData.items) || [];
+    for (const it of items) {
+      if (it.kind === 'file' && String(it.type).startsWith('image/')) {
+        const f = it.getAsFile();
+        if (f) {
+          e.preventDefault();   // иначе картинка попробует вставиться в textarea
+          setExtractPhoto(f, 'из буфера');
+          return;
+        }
+      }
+    }
+  });
+
+  const pasteImgBtn = $('#btnPasteImage');
+  if (pasteImgBtn) pasteImgBtn.addEventListener('click', () => pasteImageFromClipboard(pasteImgBtn));
+
+  // перетаскивание файла на область — удобно с рабочего стола
+  const drop = $('#extractDrop');
+  if (drop) {
+    ['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => {
+      e.preventDefault(); drop.classList.add('upload-drop-over');
+    }));
+    ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => {
+      e.preventDefault(); drop.classList.remove('upload-drop-over');
+    }));
+    drop.addEventListener('drop', (e) => {
+      const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f && String(f.type).startsWith('image/')) setExtractPhoto(f, 'перетаскиванием');
     });
   }
 
@@ -1328,5 +1406,6 @@ if (typeof window !== 'undefined') {
     ageInfo, renderAgeHint, syncAgeFromYear,
     buildSelectionText, copySelection, selectedCars, renderSelectionBar,
     postPrompt, EXTRACT_PROMPT, copyExtractPrompt, carToPostLines,
+    setExtractPhoto, pasteImageFromClipboard,
   });
 }

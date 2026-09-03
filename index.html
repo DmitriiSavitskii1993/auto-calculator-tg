@@ -245,8 +245,12 @@
           Прикрепится к карточке — пригодится для поста в канал.
           Распознавание ИИ включится, когда добавите ключ Anthropic.
         </p>
+        <div style="display:flex;gap:6px;margin-bottom:10px">
+          <button id="btnPasteImage" class="mini-btn" type="button">📋 Вставить из буфера</button>
+          <span class="hint" style="margin:0;align-self:center">или Cmd+V / Ctrl+V прямо здесь</span>
+        </div>
         <label class="upload-drop" id="extractDrop" for="extractFile">
-          <span id="extractDropText">📷 Выбрать фото</span>
+          <span id="extractDropText">📷 Выбрать файл или перетащить сюда</span>
           <img id="extractPreview" class="hidden" alt="">
         </label>
         <input type="file" id="extractFile" accept="image/*" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
