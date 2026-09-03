@@ -220,6 +220,10 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 .sel-bar-row { display: flex; gap: 8px; align-items: center; }
 .sel-bar-row + .sel-bar-row { margin-top: 8px; }
 .sel-count { flex: 1; font-size: 13px; font-weight: 600; }
+.sel-bar select { flex: 1; padding: 7px 8px; font-size: 13px; }
+.sel-check { display: flex; align-items: center; gap: 5px; font-size: 13px;
+  color: var(--hint); white-space: nowrap; cursor: pointer; }
+.sel-check input { width: 18px; height: 18px; accent-color: var(--accent); }
 
 /* Поля характеристик подписываются сверху — в grid2 подпись отдельной строкой */
 #cardVehicle .grid2 label,

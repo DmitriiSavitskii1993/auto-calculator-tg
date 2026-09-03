@@ -229,6 +229,9 @@
           Распознайте скрин в своём чате по промту, скопируйте ответ и вставьте сюда.
           Понимает JSON, строки «поле: значение» и строку через табуляцию.
         </p>
+        <button id="btnCopyExtractPrompt" class="mini-btn" type="button" style="margin-bottom:10px">
+          📋 Скопировать промт для чата
+        </button>
         <textarea id="pasteBox" rows="5" placeholder='{"make": "Toyota", "model": "Corolla Fielder", "year": 2021, ...}'></textarea>
         <button id="btnPasteApply" class="primary-btn" type="button" style="width:100%;margin-top:10px">
           ⬇️ Заполнить форму
@@ -432,6 +435,15 @@
         <div class="sel-bar-row">
           <span id="selCount" class="sel-count"></span>
           <button id="btnClearSel" class="mini-btn" type="button">Снять</button>
+        </div>
+        <div class="sel-bar-row">
+          <select id="selFormat" title="Разметка поста">
+            <option value="html">HTML — для PublioSMM</option>
+            <option value="md">MarkdownV2 — вручную</option>
+          </select>
+          <label class="sel-check" title="Лимит подписи к альбому — 1024 знака">
+            <input type="checkbox" id="selWithPhoto" checked> с фото
+          </label>
         </div>
         <div class="sel-bar-row">
           <button id="btnCopySelPrompt" class="copy-btn send-btn" type="button">✨ Копировать с промтом</button>

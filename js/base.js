@@ -165,6 +165,108 @@ const EXTRACT_FIELD_LABELS = [
 ];
 const LOW_CONF = 0.75;   // ниже — подсвечиваем как «перепроверить»
 
+/* Промт для распознавания скрина в ChatGPT/Claude. Держим в приложении,
+ * чтобы копировать кнопкой, а не искать файл в репозитории. */
+const EXTRACT_PROMPT = [
+  'Ты помогаешь заносить японские автомобили в базу брокера автоимпорта.',
+  '',
+  'На скриншоте — лист японского аукциона (USS, TAA, JU, HAA, Arai и подобные),',
+  'страница статистики продаж или карточка авто. Извлеки характеристики',
+  'и верни ОДИН объект JSON в блоке кода. Больше ничего в блок не добавляй.',
+  '',
+  '{',
+  '  "country": "jp",',
+  '  "make": "Toyota",',
+  '  "model": "Corolla Fielder",',
+  '  "trim": "Hybrid G",',
+  '  "year": 2021,',
+  '  "month": 10,',
+  '  "mileage_km": 48000,',
+  '  "volume_cc": 1500,',
+  '  "power_hp": 150,',
+  '  "power_kw": null,',
+  '  "fuel": "бензин",',
+  '  "transmission": "вариатор",',
+  '  "drive": "передний",',
+  '  "body": "универсал",',
+  '  "color": "белый",',
+  '  "auction_grade": "4.5",',
+  '  "interior_grade": "B",',
+  '  "auction_name": "USS Tokyo",',
+  '  "lot_number": "30215",',
+  '  "price_value": 1200000,',
+  '  "price_currency": "JPY",',
+  '  "equipment": ["климат-контроль", "камера заднего вида"],',
+  '  "damage_notes": ["A2 — вмятина на правой передней двери"],',
+  '  "confidence": {"year": 0.95, "power_hp": 0.6},',
+  '  "warnings": ["мощность на листе смазана"]',
+  '}',
+  '',
+  'ГЛАВНОЕ ПРАВИЛО: не выдумывай. Если поле не видно или ты не уверен — не',
+  'включай его в JSON и объясни почему в "warnings". Пустое поле лучше',
+  'неверного: по этим данным считаются пошлина и утильсбор, ошибка в объёме,',
+  'мощности или годе меняет цену на сотни тысяч рублей.',
+  '',
+  'ИСКЛЮЧЕНИЕ — "trim" (комплектация). Его заполняй ВСЕГДА. Если на скрине',
+  'комплектация не указана или это базовая версия — пиши "BASE".',
+  '',
+  'ОБЯЗАТЕЛЬНЫ, иначе строка не загрузится: make, model, year, body, price_value',
+  'и мощность (power_hp или power_kw). Плюс volume_cc — для бензина и дизеля',
+  '(у электрокара его нет, но нужен power_kw и fuel "электро").',
+  '',
+  'МЕСЯЦ ВЫПУСКА ("month") указывай обязательно, если он виден. Год без месяца',
+  'может дать неверную категорию возраста: авто января и октября одного года',
+  'попадают в разные категории пошлины, разница — сотни тысяч рублей.',
+  '',
+  '"confidence" — уверенность 0..1 по спорным полям. Ниже 0.75 калькулятор',
+  'подсветит поле для перепроверки.',
+  '',
+  'ЗНАЧЕНИЯ (пиши по-русски, как в примере):',
+  '- fuel: бензин, дизель, гибрид, электро, газ',
+  '- transmission: автомат, вариатор, робот, механика',
+  '- drive: передний, задний, полный, 4WD',
+  '- body: седан, внедорожник, универсал, хэтчбек, купе, минивэн, пикап,',
+  '  фургон, кабриолет',
+  '- price_value: число без пробелов, в иенах; price_currency: "JPY"',
+  '',
+  'ЕДИНИЦЫ И ЛОВУШКИ',
+  '- Пробег «4.8万km» = 48000. Если в милях — переведи в км (×1.609)',
+  '  и отметь это в warnings.',
+  '- Объём приводи к см³: «2.0L» = 2000, «1998cc» = 1998.',
+  '- Мощность: если на листе только кВт — заполни power_kw, а power_hp не',
+  '  включай (и наоборот). Сам не пересчитывай.',
+  '- Год — год ВЫПУСКА. Японский лист может показывать год по Хэйсэй/Рэйва',
+  '  (Рэйва 3 = 2021, Хэйсэй 31 = 2019) — переведи в григорианский.',
+  '',
+  'АУКЦИОННЫЙ ЛИСТ',
+  '- auction_grade (総合評価): S, 6, 5, 4.5, 4, 3.5, 3, 2, 1, R, RA.',
+  '  R и RA — авто после ДТП, RA хуже.',
+  '- interior_grade: A, B, C, D (A лучший).',
+  '- auction_name — название дома торгов латиницей, как на листе. Указывай',
+  '  только если уверен: по нему подтягивается стоимость доставки.',
+  '- damage_notes — расшифруй коды с эскиза кузова человеческим языком.',
+  '  A — вмятина, U — вмятина с заломом, W — царапина, S — ржавчина,',
+  '  C — коррозия, P — след покраски, X — нужен ремонт, XX — замена детали.',
+  '  Цифра рядом — серьёзность, больше значит хуже.',
+  '',
+  'ЕСЛИ ЭТО СТРАНИЦА СТАТИСТИКИ ПРОДАЖ',
+  'Там обычно несколько строк с ценами проданных лотов. Возьми машину,',
+  'которая явно в фокусе. Если непонятно какая — верни то, что общее для всех',
+  'строк, и напиши в warnings, что на скрине несколько лотов.',
+].join('\n');
+
+async function copyExtractPrompt(btn) {
+  const ok = await copyToClipboard(EXTRACT_PROMPT);
+  haptic(ok ? 'medium' : 'light');
+  toast(ok ? 'Промт скопирован — вставьте в чат вместе со скрином'
+           : 'Не удалось скопировать');
+  if (btn) {
+    const old = btn.textContent;
+    btn.textContent = '✅ Скопировано';
+    setTimeout(() => { btn.textContent = old; }, 1500);
+  }
+}
+
 /* Разбирает вставленный из чата ответ и заполняет форму расчёта. */
 function applyPasted() {
   const box = $('#pasteBox');
@@ -512,6 +614,8 @@ function bindExtractEvents() {
 
   const run = $('#btnExtractRun'); if (run) run.addEventListener('click', runExtraction);
   const paste = $('#btnPasteApply'); if (paste) paste.addEventListener('click', applyPasted);
+  const cp = $('#btnCopyExtractPrompt');
+  if (cp) cp.addEventListener('click', () => copyExtractPrompt(cp));
   const back = $('#btnExtractBack'); if (back) back.addEventListener('click', () => showScreen('screenCalc'));
   const cancel = $('#btnExtractCancel');
   if (cancel) cancel.addEventListener('click', () => {
@@ -810,23 +914,80 @@ function carCardHtml(c) {
  *  живее, да и глазами проверить проще перед отправкой.
  * ========================================================================= */
 
-const POST_PROMPT =
-  'Напиши пост-подборку для Telegram-канала об автомобилях под заказ из Японии.\n' +
-  'Компания WESTTRANSIT (WT), Владивосток: привозим авто под ключ до города клиента.\n\n' +
-  'Требования к посту:\n' +
-  '- живой текст, без канцелярита и без «уважаемые клиенты»;\n' +
-  '- по каждой машине 2–3 строки: чем хороша и кому подойдёт;\n' +
-  '- цену «под ключ» указывай как есть, это финальная сумма до города;\n' +
-  '- если у машины отмечен льготный утильсбор — это сильный аргумент,\n' +
-  '  обыграй: мощность до 160 л.с. экономит сотни тысяч на утиле;\n' +
-  '- в конце короткий призыв написать в личку за подбором;\n' +
-  '- разметка Telegram: <b>жирный</b>, эмодзи умеренно;\n' +
-  '- не выдумывай характеристики, которых нет в данных ниже.\n\n' +
-  'Данные:\n';
+/* Лимит подписи к медиа в Telegram — 1024 видимых символа (теги не в счёт).
+ * PublioSMM считает ровно так (telegram_service.CAPTION_LIMIT) и, если текст
+ * длиннее, отправляет его ОТДЕЛЬНЫМ сообщением — пост отрывается от фото.
+ * Поэтому для поста с альбомом это жёсткая граница, а не пожелание. */
+const TG_CAPTION_LIMIT = 1024;
+const TG_MESSAGE_LIMIT = 4096;
+
+function formatRules(fmt) {
+  if (fmt === 'md') {
+    return [
+      'Разметка — MarkdownV2 (Telegram):',
+      '- *жирный*, _курсив_, цитата — строка, начинающаяся с «>»;',
+      '- спецсимволы вне разметки экранируй обратным слэшем:',
+      '  . - ! ( ) + = # | { } ~ ` > _ *  — иначе Telegram не примет пост;',
+      '- в числах и датах точки и дефисы тоже экранируются: 1\\.5, 2021\\-й.',
+    ].join('\n');
+  }
+  return [
+    'Разметка — HTML (Telegram):',
+    '- <b>жирный</b>, <i>курсив</i>, <blockquote>цитата</blockquote>;',
+    '- ВАЖНО про цитату: пиши <blockquote>текст</blockquote> без пробелов',
+    '  и переносов сразу после открывающего и перед закрывающим тегом,',
+    '  и без пустой строки перед цитатой — иначе в посте появится лишний',
+    '  отступ. Нужный перенос система добавит сама;',
+    '- другие теги (<p>, <br>, <ul>, заголовки) не используй — Telegram их',
+    '  не понимает и покажет как текст.',
+  ].join('\n');
+}
+
+function postPrompt(fmt, withPhoto) {
+  const limit = withPhoto ? TG_CAPTION_LIMIT : TG_MESSAGE_LIMIT;
+  const lenRule = withPhoto
+    ? 'ДЛИНА: не больше ' + limit + ' знаков видимого текста (теги не считаются).\n' +
+      'Это лимит подписи к фотоальбому: если превысить, текст оторвётся от фото\n' +
+      'и уйдёт отдельным сообщением. Уложись с запасом — целься в 900.'
+    : 'ДЛИНА: не больше ' + limit + ' знаков (лимит сообщения Telegram).\n' +
+      'Пост без фото, поэтому места достаточно — но не растекайся, целься в 2000.';
+
+  return [
+    'Напиши пост-подборку для Telegram-канала об автомобилях под заказ из Японии.',
+    'Компания WESTTRANSIT (WT), Владивосток: привозим авто под ключ до города клиента.',
+    '',
+    formatRules(fmt),
+    '',
+    lenRule,
+    '',
+    'Требования к посту:',
+    '- живой текст, без канцелярита и без «уважаемые клиенты»;',
+    '- начни с цепляющей строки: для кого эта подборка и в каком бюджете;',
+    '- по каждой машине 2–3 строки: чем хороша и кому подойдёт;',
+    '- модель и цену «под ключ» выделяй жирным, цена — финальная сумма до города;',
+    '- вставь одну цитату: в неё вынеси главный аргумент подборки',
+    '  (например, про льготный утильсбор или про разброс цен);',
+    '- если у машины отмечен льготный утильсбор — это сильный довод,',
+    '  обыграй: мощность до 160 л.с. экономит сотни тысяч на утиле;',
+    '- в конце короткий призыв написать в личку за подбором;',
+    '- эмодзи умеренно, 1–2 на машину;',
+    '- не выдумывай характеристики, которых нет в данных ниже.',
+    '',
+    'Учти: во ВКонтакте разметка вырезается и остаётся голый текст,',
+    'поэтому смысл не должен держаться на жирном и цитатах — читаться',
+    'должно и без них.',
+    '',
+    'Данные:',
+    '',
+  ].join('\n');
+}
 
 function carToPostLines(c, idx) {
   const L = [];
-  const title = [c.make, c.model, c.trim].filter(Boolean).join(' ') || c.title || 'Авто';
+  // Комплектация участвует в названии всегда: пустая графа читается как
+  // недоработка, а BASE — принятое обозначение базовой версии.
+  const trim = (c.trim && String(c.trim).trim()) || 'BASE';
+  const title = [c.make, c.model, trim].filter(Boolean).join(' ') || c.title || 'Авто';
   const when = c.year ? (c.year + (c.month ? ' (' + String(c.month).padStart(2, '0') + ')' : '')) : '';
   L.push(`${idx}. ${title}${when ? ', ' + when : ''}`);
 
@@ -862,11 +1023,15 @@ function carToPostLines(c, idx) {
   return L.join('\n');
 }
 
-function buildSelectionText(cars, withPrompt) {
+function buildSelectionText(cars, withPrompt, opts) {
+  opts = opts || {};
   const date = new Date().toLocaleDateString('ru-RU');
   const head = `Подборка на ${date}, ${cars.length} шт. Цены «под ключ» в рублях.\n\n`;
   const body = cars.map((c, i) => carToPostLines(c, i + 1)).join('\n\n');
-  return (withPrompt ? POST_PROMPT : head) + (withPrompt ? head.trim() + '\n\n' : '') + body + '\n';
+  if (!withPrompt) return head + body + '\n';
+  const fmt = opts.format || 'html';
+  const withPhoto = opts.withPhoto !== false;
+  return postPrompt(fmt, withPhoto) + head.trim() + '\n\n' + body + '\n';
 }
 
 function selectedCars() {
@@ -894,7 +1059,12 @@ function renderSelectionBar() {
 async function copySelection(withPrompt, btn) {
   const cars = selectedCars();
   if (!cars.length) { toast('Отметьте хотя бы одну машину'); return; }
-  const text = buildSelectionText(cars, withPrompt);
+  const fmtEl = $('#selFormat');
+  const photoEl = $('#selWithPhoto');
+  const text = buildSelectionText(cars, withPrompt, {
+    format: fmtEl ? fmtEl.value : 'html',
+    withPhoto: photoEl ? photoEl.checked : true,
+  });
   const ok = await copyToClipboard(text);
   haptic(ok ? 'medium' : 'light');
   toast(ok
@@ -1157,5 +1327,6 @@ if (typeof window !== 'undefined') {
     applyPasted, recalcVisible, rateStaleness,
     ageInfo, renderAgeHint, syncAgeFromYear,
     buildSelectionText, copySelection, selectedCars, renderSelectionBar,
+    postPrompt, EXTRACT_PROMPT, copyExtractPrompt, carToPostLines,
   });
 }
