@@ -202,12 +202,28 @@
     <section id="screenExtract" class="screen hidden">
       <div class="settings-head">
         <button id="btnExtractBack" class="icon-btn" type="button">←</button>
-        <h2>Из скриншота</h2>
+        <h2>Из чата или скриншота</h2>
       </div>
 
       <section class="card">
-        <div class="card-head">Скриншот</div>
-        <p class="hint">Лист японского аукциона, карточка Encar/корейской площадки — что угодно с характеристиками авто.</p>
+        <div class="card-head">Вставить данные из ChatGPT или Claude</div>
+        <p class="hint">
+          Распознайте скрин в своём чате по промту, скопируйте ответ и вставьте сюда.
+          Понимает JSON, строки «поле: значение» и строку через табуляцию.
+        </p>
+        <textarea id="pasteBox" rows="5" placeholder='{"make": "Toyota", "model": "Corolla Fielder", "year": 2021, ...}'></textarea>
+        <button id="btnPasteApply" class="primary-btn" type="button" style="width:100%;margin-top:10px">
+          ⬇️ Заполнить форму
+        </button>
+        <div id="pasteResult"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">Скриншот авто <small style="font-weight:400;color:var(--hint)">(необязательно)</small></div>
+        <p class="hint">
+          Прикрепится к карточке — пригодится для поста в канал.
+          Распознавание ИИ включится, когда добавите ключ Anthropic.
+        </p>
         <label class="upload-drop" id="extractDrop" for="extractFile">
           <span id="extractDropText">📷 Выбрать фото</span>
           <img id="extractPreview" class="hidden" alt="">
@@ -219,9 +235,10 @@
           <input type="text" id="extractDromUrl" inputmode="url" placeholder="https://www.drom.ru/catalog/…">
         </div>
 
-        <button id="btnExtractRun" class="primary-btn" type="button" style="width:100%;margin-top:12px" disabled>
-          🔎 Распознать
+        <button id="btnExtractRun" class="ghost-btn" type="button" style="width:100%;margin-top:12px" disabled>
+          🔎 Распознать через ИИ
         </button>
+        <p class="hint" id="extractPhotoNote"></p>
       </section>
 
       <section class="card hidden" id="extractReview">

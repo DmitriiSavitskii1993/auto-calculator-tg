@@ -20,6 +20,9 @@ const baseState = {
 let extractFile = null;
 let lastExtraction = null;       // последний ответ /wtapi/extract целиком
 let currentExtractionId = null;  // если задан — сохранение в базу заберёт скрин из tmp
+/* Скрин, выбранный без распознавания ИИ: карточки ещё нет, поэтому файл
+ * ждёт здесь и прикрепляется сразу после её создания. */
+let pendingCarPhoto = null;
 
 /* --- утилиты --- */
 const esc = (s) => String(s == null ? '' : s)
@@ -115,6 +118,16 @@ async function saveCurrentToBase(btn) {
       btn.textContent = '✅ В базе';
       btn.dataset.carId = car.id;
     }
+    // скрин, выбранный без распознавания, прикрепляем к уже созданной карточке
+    if (pendingCarPhoto) {
+      try {
+        await wtApi.uploadPhotos(car.id, [pendingCarPhoto]);
+        pendingCarPhoto = null;
+      } catch (e) {
+        toast('Карточка сохранена, но фото не загрузилось: ' + e.message);
+      }
+    }
+
     toast('✅ Сохранено в базу: ' + (car.title || 'авто') + ' — ' + money(car.price_rub_total));
     baseState.items = [];   // список устарел
     currentExtractionId = null;  // скрин уже усыновлён карточкой, повторно не переиспользуем
@@ -148,10 +161,42 @@ const EXTRACT_FIELD_LABELS = [
 ];
 const LOW_CONF = 0.75;   // ниже — подсвечиваем как «перепроверить»
 
+/* Разбирает вставленный из чата ответ и заполняет форму расчёта. */
+function applyPasted() {
+  const box = $('#pasteBox');
+  const out = $('#pasteResult');
+  if (!box) return;
+  try {
+    const parsed = parsePastedCar(box.value);
+    const filled = Object.keys(parsed.fields).filter((k) => k !== 'notes_combined');
+    if (!filled.length) throw new Error('в тексте не нашлось ни одного знакомого поля');
+
+    applyExtraction(parsed);
+
+    const shown = ['make', 'model', 'year', 'volume_cc', 'power_hp', 'power_kw', 'price_value']
+      .filter((k) => parsed.fields[k] != null)
+      .map((k) => esc(String(parsed.fields[k]))).join(' · ');
+    out.innerHTML =
+      '<div class="extract-warning" style="border-left-color:#1f9d57;background:rgba(39,174,96,.10)">' +
+      '✅ Заполнено полей: ' + filled.length + (shown ? '<br>' + shown : '') + '</div>' +
+      (parsed.warnings || []).map((w) => '<div class="extract-warning">⚠️ ' + esc(w) + '</div>').join('');
+
+    haptic('medium');
+    showScreen('screenCalc');
+    toast('Форма заполнена — проверьте отмеченные поля и нажмите «Рассчитать»');
+  } catch (e) {
+    out.innerHTML = '<div class="extract-warning">⛔ ' + esc(e.message) + '</div>';
+  }
+}
+
 function resetExtractScreen() {
   extractFile = null;
   lastExtraction = null;
   currentExtractionId = null;
+  pendingCarPhoto = null;
+  const pb = $('#pasteBox'); if (pb) pb.value = '';
+  const pr = $('#pasteResult'); if (pr) pr.innerHTML = '';
+  const pn = $('#extractPhotoNote'); if (pn) pn.textContent = '';
   const fi = $('#extractFile'); if (fi) fi.value = '';
   const img = $('#extractPreview'); if (img) { img.classList.add('hidden'); img.src = ''; }
   const dt = $('#extractDropText'); if (dt) dt.classList.remove('hidden');
@@ -316,6 +361,9 @@ function bindExtractEvents() {
       const file = e.target.files && e.target.files[0];
       if (!file) return;
       extractFile = file;
+      // без ключа ИИ распознавать нечем, но скрин всё равно нужен —
+      // он прикрепится к карточке при сохранении в базу
+      pendingCarPhoto = file;
       const img = $('#extractPreview');
       const reader = new FileReader();
       reader.onload = () => {
@@ -325,11 +373,14 @@ function bindExtractEvents() {
       };
       reader.readAsDataURL(file);
       $('#btnExtractRun').disabled = false;
+      const note = $('#extractPhotoNote');
+      if (note) note.textContent = '📎 Скрин прикрепится к карточке при сохранении в базу.';
       $('#extractReview').classList.add('hidden');
     });
   }
 
   const run = $('#btnExtractRun'); if (run) run.addEventListener('click', runExtraction);
+  const paste = $('#btnPasteApply'); if (paste) paste.addEventListener('click', applyPasted);
   const back = $('#btnExtractBack'); if (back) back.addEventListener('click', () => showScreen('screenCalc'));
   const cancel = $('#btnExtractCancel');
   if (cancel) cancel.addEventListener('click', () => {
@@ -828,5 +879,6 @@ if (typeof window !== 'undefined') {
     initBase, applyMode, onResultRendered, loadBase, saveCurrentToBase,
     ratesSnapshot, collectVehicle, applyExtraction, ageBandFrom, runExtraction,
     handleImportFile, runImport, resetImportScreen, renderImportPreview,
+    applyPasted, recalcVisible, rateStaleness,
   });
 }

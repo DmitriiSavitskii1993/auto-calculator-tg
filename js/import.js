@@ -466,9 +466,175 @@ function parseImport(input) {
   return { parsed, unknownColumns: unknown };
 }
 
+/* =========================================================================
+ *  Вставка одного авто из ответа ChatGPT / Claude
+ *
+ *  Пользователь распознаёт скрин в своём чате и вставляет ответ сюда.
+ *  Принимаем три формата, потому что модели отвечают по-разному и
+ *  переучивать пользователя под один синтаксис — лишнее трение:
+ *    • JSON-объект (в том числе внутри ```-блока) — основной, из промта;
+ *    • строка значений через таб/;/, — из старого промта под Excel;
+ *    • строки «ключ: значение».
+ * ========================================================================= */
+
+/* Приводим ключ любого вида к каноническому имени поля. */
+const FIELD_ALIASES = {
+  country: ['country', 'страна'],
+  make: ['make', 'марка', 'brand'],
+  model: ['model', 'модель'],
+  trim: ['trim', 'комплектация', 'badge', 'грейд'],
+  generation: ['generation', 'поколение'],
+  year: ['year', 'год', 'год выпуска'],
+  month: ['month', 'месяц'],
+  mileage_km: ['mileage_km', 'mileage', 'пробег', 'пробег км', 'пробег_км'],
+  volume_cc: ['volume_cc', 'volume', 'объем', 'объём', 'объем см3', 'объём см3', 'объем_см3', 'объём_см3'],
+  power_hp: ['power_hp', 'hp', 'мощность', 'мощность лс', 'мощность_лс', 'лс'],
+  power_kw: ['power_kw', 'kw', 'мощность квт', 'мощность_квт', 'квт'],
+  fuel: ['fuel', 'топливо'],
+  transmission: ['transmission', 'кпп', 'коробка', 'трансмиссия'],
+  drive: ['drive', 'привод'],
+  body: ['body', 'кузов', 'тип кузова'],
+  color: ['color', 'цвет'],
+  doors: ['doors', 'двери'],
+  seats: ['seats', 'места'],
+  auction_grade: ['auction_grade', 'grade', 'оценка', 'оценка аукциона', 'оценка_аукциона'],
+  interior_grade: ['interior_grade', 'оценка салона', 'оценка_салона', 'салон'],
+  auction_name: ['auction_name', 'auction', 'аукцион'],
+  auction_date: ['auction_date', 'дата аукциона'],
+  lot_number: ['lot_number', 'lot', 'лот', 'номер лота', 'номер_лота'],
+  price_value: ['price_value', 'price', 'цена', 'цена валюта', 'цена_валюта'],
+  price_currency: ['price_currency', 'currency', 'валюта'],
+  vin: ['vin'],
+  plate_no: ['plate_no', 'госномер', 'номер'],
+  drom_url: ['drom_url', 'drom', 'ссылка', 'ссылка drom', 'ссылка_drom'],
+  equipment: ['equipment', 'опции', 'оснащение'],
+  damage_notes: ['damage_notes', 'повреждения'],
+  inspector_notes_ru: ['inspector_notes_ru', 'заметки инспектора', 'примечания инспектора'],
+  notes: ['notes', 'заметки', 'примечание', 'примечания'],
+  is_electric: ['is_electric', 'электрокар', 'электро', 'ev'],
+};
+
+const _ALIAS_TO_FIELD = (() => {
+  const m = {};
+  for (const [field, list] of Object.entries(FIELD_ALIASES)) {
+    for (const a of list) m[normHeader(a)] = field;
+  }
+  return m;
+})();
+
+/* Нормализация значений под то, что ждёт форма калькулятора. */
+function normalizePastedFields(raw) {
+  const f = {};
+  const warnings = [];
+
+  for (const [key, value] of Object.entries(raw)) {
+    const field = _ALIAS_TO_FIELD[normHeader(key)];
+    if (!field || value === null || value === undefined || value === '') continue;
+    f[field] = value;
+  }
+
+  const num = (v) => { const n = asNum(v); return n == null ? undefined : n; };
+  const int = (v) => { const n = asInt(v); return n == null ? undefined : n; };
+
+  ['year', 'month', 'mileage_km', 'volume_cc', 'power_hp', 'power_kw', 'doors', 'seats']
+    .forEach((k) => { if (f[k] !== undefined) f[k] = int(f[k]); });
+  if (f.price_value !== undefined) f.price_value = num(f.price_value);
+
+  if (f.country) {
+    const c = COUNTRY_MAP[String(f.country).trim().toLowerCase()];
+    if (c) f.country = c; else { warnings.push(`страна «${f.country}» не распознана`); delete f.country; }
+  }
+  // форма ждёт канонические английские значения — селекты именно на них
+  const mapped = (val, dict, allowed, label) => {
+    if (val === undefined) return undefined;
+    const r = mapEnum(val, dict, allowed);
+    if (!r) warnings.push(`${label} «${val}» не распознан`);
+    return r || undefined;
+  };
+  f.body = mapped(f.body, BODY_MAP,
+    ['sedan','suv','wagon','hatchback','coupe','minivan','pickup','van','convertible','other'], 'кузов');
+  f.drive = mapped(f.drive, DRIVE_MAP, ['FWD','RWD','AWD','4WD'], 'привод');
+  f.transmission = mapped(f.transmission, TRANS_MAP, ['AT','MT','CVT','DCT','AMT','other'], 'КПП');
+  f.fuel = mapped(f.fuel, FUEL_MAP, ['petrol','diesel','hybrid','phev','ev','lpg','other'], 'топливо');
+
+  if (f.is_electric !== undefined && asBool(f.is_electric)) f.fuel = 'ev';
+  delete f.is_electric;
+
+  if (f.price_currency) f.price_currency = String(f.price_currency).trim().toUpperCase();
+
+  // отдельные текстовые поля сводим в заметки — в форме под них одно поле
+  const noteParts = [];
+  const asList = (v) => Array.isArray(v) ? v : (v ? [String(v)] : []);
+  if (f.inspector_notes_ru) noteParts.push(String(f.inspector_notes_ru));
+  const dmg = asList(f.damage_notes);
+  if (dmg.length) noteParts.push('Повреждения: ' + dmg.join('; '));
+  const eq = asList(f.equipment);
+  if (eq.length) noteParts.push('Опции: ' + eq.join(', '));
+  if (f.notes) noteParts.push(String(f.notes));
+  f.equipment = eq;
+  f.damage_notes = dmg;
+  if (noteParts.length) f.notes_combined = noteParts.join('\n');
+
+  return { fields: f, warnings };
+}
+
+function parsePastedCar(text) {
+  const src = String(text || '').trim();
+  if (!src) throw new Error('пусто — вставьте ответ из чата');
+
+  // ```json … ``` — модели часто оборачивают ответ в блок кода
+  const fenced = src.replace(/^```[a-zA-Z]*\s*/, '').replace(/```\s*$/, '').trim();
+
+  // 1) JSON
+  const jsonStart = fenced.indexOf('{');
+  if (jsonStart >= 0 && fenced.lastIndexOf('}') > jsonStart) {
+    const candidate = fenced.slice(jsonStart, fenced.lastIndexOf('}') + 1);
+    try {
+      const obj = JSON.parse(candidate);
+      if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+        const { fields, warnings } = normalizePastedFields(obj);
+        return { fields, confidence: obj.confidence || {}, warnings: warnings.concat(obj.warnings || []) };
+      }
+    } catch (e) { /* не JSON — пробуем дальше */ }
+  }
+
+  // 2) строки «ключ: значение»
+  const lines = fenced.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const kv = {};
+  let kvHits = 0;
+  for (const line of lines) {
+    const m = /^[-•*\s]*([^:]{2,40}):\s*(.+)$/.exec(line);
+    if (m && _ALIAS_TO_FIELD[normHeader(m[1])]) { kv[m[1]] = m[2].trim(); kvHits++; }
+  }
+  if (kvHits >= 3) {
+    const { fields, warnings } = normalizePastedFields(kv);
+    return { fields, confidence: {}, warnings };
+  }
+
+  // 3) строка значений через таб / ; / , — как выдавал промт под Excel
+  const dataLine = lines.find((l) => /[\t;,]/.test(l));
+  if (dataLine) {
+    const cells = parseCsv(dataLine)[0] || [];
+    if (cells.length >= 5) {
+      const ORDER = ['country','make','model','trim','year','month','mileage_km','volume_cc',
+        'power_hp','power_kw','is_electric','fuel','transmission','drive','body','color',
+        'auction_grade','interior_grade','lot_number','auction_name','price_value','delivery',
+        'age','sanctioned','not_dvfo','logistics_rf','city','drom_url','notes'];
+      const raw = {};
+      ORDER.forEach((k, i) => { if (cells[i] !== undefined && cells[i] !== '') raw[k] = cells[i]; });
+      const { fields, warnings } = normalizePastedFields(raw);
+      warnings.unshift('Данные распознаны как строка значений — проверьте, что колонки не съехали.');
+      return { fields, confidence: {}, warnings };
+    }
+  }
+
+  throw new Error('не понял формат. Ожидается JSON, строки «поле: значение» или строка через табуляцию');
+}
+
 if (typeof window !== 'undefined') {
   Object.assign(window, {
     parseCsv, parseImport, buildRow, readImportFile, mapHeaders,
     expensesFor, deliveryFor, findAuctionIndex, parseXlsx, zipEntries,
+    parsePastedCar, normalizePastedFields,
   });
 }
