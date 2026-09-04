@@ -893,11 +893,30 @@ function restoreFilter() {
   return f;
 }
 
-async function loadBase() {
+/* Один жест — один запрос.
+ *
+ * По Enter обработчик делает blur(), тот сам порождает change на поле фильтра,
+ * и загрузка запускалась дважды: в журнале сервера пара одинаковых запросов шла
+ * подряд. Защита «уже гружу» не спасала — первый успевал завершиться. Поэтому
+ * вызовы от интерфейса собираются в один за 120 мс. */
+let _baseTimer = null;
+let _lastFilterKey = null;
+
+function requestBase(force) {
+  if (_baseTimer) clearTimeout(_baseTimer);
+  _baseTimer = setTimeout(() => { _baseTimer = null; loadBase(force); }, 120);
+}
+
+async function loadBase(force) {
   if (baseState.loading) return;
   baseState.loading = true;
   const listEl = $('#baseList');
-  if (listEl) listEl.innerHTML = '<p class="hint">Загружаю…</p>';
+  // Первый заход — «Загружаю…», дальше не выкидываем карточки с экрана, а
+  // приглушаем список: моргание пустотой само по себе читается как тормоза.
+  if (listEl) {
+    if (!baseState.items.length) listEl.innerHTML = '<p class="hint">Загружаю…</p>';
+    else listEl.classList.add('is-updating');
+  }
 
   // Всё внутри try: если сборка фильтра бросит исключение, флаг loading
   // останется поднятым и экран зависнет на «Загружаю…» уже навсегда,
@@ -905,7 +924,14 @@ async function loadBase() {
   try {
     const f = readFilter();
     saveFilter(f);
+    const key = JSON.stringify(f);
+    // Фильтр тот же и карточки уже на руках — показываем их, не гоняя сеть.
+    if (!force && key === _lastFilterKey && baseState.items.length) {
+      renderBaseList();
+      return;
+    }
     const data = await wtApi.listCars(Object.assign({ limit: 100 }, f));
+    _lastFilterKey = key;
     baseState.items = data.items;
     baseState.total = data.total;
     renderBaseList();
@@ -918,6 +944,7 @@ async function loadBase() {
     }
   } finally {
     baseState.loading = false;
+    if (listEl) listEl.classList.remove('is-updating');
   }
 }
 
@@ -1344,7 +1371,7 @@ async function recalcVisible(btn) {
   toast(failed.length
     ? `Пересчитано ${done}, не вышло ${failed.length}`
     : `Пересчитано ${done} шт. по сегодняшнему курсу`);
-  loadBase();
+  loadBase(true);
 }
 
 /* Картинка расчёта по сохранённой карточке — та же таблица, что и после
@@ -1563,7 +1590,7 @@ async function uploadBasePhotos(input) {
     await wtApi.uploadPhotos(carId, input.files);
     haptic('light');
     toast('Фото добавлены');
-    loadBase();
+    loadBase(true);
   } catch (e) {
     toast('Не удалось загрузить: ' + e.message);
   } finally {
@@ -1615,14 +1642,14 @@ function bindBaseEvents() {
     }
     const btn = e.target.closest('[data-act]');
     if (btn) { baseCardAction(btn.dataset.act, btn.dataset.id, btn); return; }
-    if (e.target.closest('#btnApplyFilter') || e.target.closest('#btnRetryBase')) { loadBase(); return; }
+    if (e.target.closest('#btnApplyFilter') || e.target.closest('#btnRetryBase')) { requestBase(true); return; }
     const recalcBtn = e.target.closest('#btnRecalcRates');
     if (recalcBtn) { recalcVisible(recalcBtn); return; }
     if (e.target.closest('#btnResetFilter')) {
       screen.querySelectorAll('#filterCard input, #filterCard select').forEach((el) => {
         if (el.type === 'checkbox') el.checked = false; else el.value = '';
       });
-      loadBase();
+      requestBase(true);
       return;
     }
     if (e.target.closest('#btnBaseBack')) { showScreen('screenCalc'); return; }
@@ -1630,12 +1657,12 @@ function bindBaseEvents() {
 
   screen.addEventListener('change', (e) => {
     if (e.target.id === 'basePhotoInput') { uploadBasePhotos(e.target); return; }
-    if (e.target.closest('#filterCard')) loadBase();
+    if (e.target.closest('#filterCard')) requestBase();
   });
 
   screen.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && e.target.tagName === 'INPUT') {
-      e.preventDefault(); e.target.blur(); loadBase();
+      e.preventDefault(); e.target.blur(); requestBase();
     }
   });
 
@@ -1682,7 +1709,7 @@ function initBase() {
     openBtn.addEventListener('click', () => {
       showScreen('screenBase');
       restoreFilter();
-      loadBase();
+      loadBase(true);   // карточку могли только что сохранить
     });
   }
   const openExtractBtn = $('#btnOpenExtract');

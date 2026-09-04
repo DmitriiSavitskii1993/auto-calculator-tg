@@ -46,7 +46,10 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
-    max_age=600,
+    # Заголовок Authorization делает запрос «сложным», поэтому каждому GET
+    # предшествует OPTIONS — лишний поход по сети. 2 часа: это потолок, который
+    # держит Chrome, дальше он всё равно обрежет сам.
+    max_age=7200,
 )
 
 api = APIRouter(prefix="/wtapi")

@@ -273,3 +273,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   margin: 8px 0 0; padding: 8px 10px; border-radius: 8px; font-size: 12.5px; line-height: 1.4;
   border-left: 3px solid #e6a23c; background: rgba(230, 162, 60, .10);
 }
+
+/* Список обновляется: карточки остаются на месте, просто приглушены —
+   моргание пустым экраном читается как тормоза, даже когда ответ за 0,1 с */
+#baseList.is-updating { opacity: .55; transition: opacity .12s ease; pointer-events: none; }
