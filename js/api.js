@@ -9,6 +9,12 @@
 const WT_API_BASE = 'https://publiosmm.ru/wtapi';
 const WT_TOKEN_KEY = 'wt_api_token_v1';
 
+/* У fetch нет таймаута по умолчанию: если соединение зависло (например,
+ * VPN или прокси перехватил домен и молча держит сокет), запрос не вернётся
+ * никогда, и экран останется на «Загружаю…». Обрываем сами и говорим правду. */
+const WT_TIMEOUT_MS = 25000;
+const WT_UPLOAD_TIMEOUT_MS = 90000;   // фото и распознавание — дольше
+
 let _wtToken = null;
 let _wtAuthPromise = null;   // чтобы параллельные запросы не логинились наперегонки
 
@@ -35,16 +41,35 @@ class WtApiError extends Error {
   }
 }
 
+/* fetch с обрывом по таймауту. Сообщение делаем человеческим: чаще всего
+ * это не «сервер лежит», а VPN или прокси, который перехватил домен. */
+async function wtRawFetch(url, opts, timeoutMs) {
+  const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = setTimeout(() => { if (ctrl) ctrl.abort(); }, timeoutMs || WT_TIMEOUT_MS);
+  try {
+    return await fetch(url, ctrl ? Object.assign({}, opts, { signal: ctrl.signal }) : opts);
+  } catch (e) {
+    if (e && (e.name === 'AbortError' || e.name === 'TimeoutError')) {
+      throw new WtApiError(0,
+        'Сервер не ответил за ' + Math.round((timeoutMs || WT_TIMEOUT_MS) / 1000) + ' с. ' +
+        'Обычно виноват VPN или прокси — попробуйте отключить его и повторить.');
+    }
+    throw new WtApiError(0, 'Нет связи с сервером. Проверьте интернет и VPN.');
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function wtLogin() {
   if (!wtAvailable()) throw new WtApiError(0, 'База работает только внутри Telegram');
   if (_wtAuthPromise) return _wtAuthPromise;
 
   _wtAuthPromise = (async () => {
-    const res = await fetch(WT_API_BASE + '/auth/miniapp', {
+    const res = await wtRawFetch(WT_API_BASE + '/auth/miniapp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ init_data: tg.initData }),
-    });
+    }, WT_TIMEOUT_MS);
     if (!res.ok) {
       wtSetToken(null);
       throw new WtApiError(res.status, res.status === 403
@@ -83,7 +108,8 @@ async function wtFetch(path, { method = 'GET', body = null, query = null, retry 
     payload = JSON.stringify(body);
   }
 
-  const res = await fetch(url, { method, headers, body: payload });
+  const res = await wtRawFetch(url, { method, headers, body: payload },
+    body instanceof FormData ? WT_UPLOAD_TIMEOUT_MS : WT_TIMEOUT_MS);
 
   if (res.status === 401 && retry) {      // токен протух — перелогиниться и повторить
     wtSetToken(null);

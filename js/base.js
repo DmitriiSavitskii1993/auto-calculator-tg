@@ -899,16 +899,22 @@ async function loadBase() {
   const listEl = $('#baseList');
   if (listEl) listEl.innerHTML = '<p class="hint">Загружаю…</p>';
 
-  const f = readFilter();
-  saveFilter(f);
+  // Всё внутри try: если сборка фильтра бросит исключение, флаг loading
+  // останется поднятым и экран зависнет на «Загружаю…» уже навсегда,
+  // потому что повторный вызов выйдет по проверке в начале функции.
   try {
+    const f = readFilter();
+    saveFilter(f);
     const data = await wtApi.listCars(Object.assign({ limit: 100 }, f));
     baseState.items = data.items;
     baseState.total = data.total;
     renderBaseList();
   } catch (e) {
     if (listEl) {
-      listEl.innerHTML = '<p class="hint">Не удалось загрузить: ' + esc(e.message) + '</p>';
+      listEl.innerHTML =
+        '<div class="extract-warning">⛔ Не удалось загрузить базу.<br>' + esc(e.message) + '</div>' +
+        '<button class="primary-btn" id="btnRetryBase" type="button" style="width:100%;margin-top:8px">' +
+        '↻ Повторить</button>';
     }
   } finally {
     baseState.loading = false;
@@ -1482,7 +1488,7 @@ function bindBaseEvents() {
     }
     const btn = e.target.closest('[data-act]');
     if (btn) { baseCardAction(btn.dataset.act, btn.dataset.id, btn); return; }
-    if (e.target.closest('#btnApplyFilter')) { loadBase(); return; }
+    if (e.target.closest('#btnApplyFilter') || e.target.closest('#btnRetryBase')) { loadBase(); return; }
     const recalcBtn = e.target.closest('#btnRecalcRates');
     if (recalcBtn) { recalcVisible(recalcBtn); return; }
     if (e.target.closest('#btnResetFilter')) {
