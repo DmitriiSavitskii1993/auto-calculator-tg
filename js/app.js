@@ -15,6 +15,7 @@ const state = {
   isNotDvfo: false,     // не из ДВФО → нужна врем. регистрация (+15 000 ₽)
   powerUnit: 'hp',
   logisticsCity: '',    // город доставки по РФ (к строке «Логистика по РФ»)
+  commissionManual: false, // комиссия задана вручную под сделку, а не ступенью
   mode: 'client',       // 'client' — как раньше, 'base' — наполняем базу авто
 };
 
@@ -89,6 +90,10 @@ function captureInputs() {
     carPrice: $('#carPrice') ? $('#carPrice').value : '',
     auction: (state.country === 'jp' && sel) ? sel.value : '',
     city: $('#logCity') ? $('#logCity').value : (state.logisticsCity || ''),
+    commissionManual: state.commissionManual,
+    // ручную сумму запоминаем только в ручном режиме: иначе вернём ступень,
+    // которая на новой цене окажется неверной
+    commission: state.commissionManual && $('#commission') ? $('#commission').value : '',
   };
 }
 /* сохранить текущие поля под текущую страну */
@@ -113,6 +118,10 @@ function applyFieldInputs(saved) {
     $('#auction').value = saved.auction;
     $('#delivery').value = CALC_DATA.auctions[saved.auction].fob;
   }
+  if (state.commissionManual && $('#commission') && saved.commission) {
+    $('#commission').value = saved.commission;
+  }
+  syncCommission();   // подставить ступень под восстановленную цену
   updateDelivery(); // Корея/Китай/санкц.Япония — пересчитать авто-доставку от восстановленной цены
 }
 /* загрузить сохранённые поля выбранной страны в состояние + форму */
@@ -120,6 +129,7 @@ function loadInputsFor(country) {
   const saved = getLastInputs()[country] || {};
   state.logisticsCity = saved.city || '';
   state.powerUnit = saved.powerUnit || 'hp';
+  state.commissionManual = !!saved.commissionManual;
   return saved;
 }
 
@@ -353,12 +363,50 @@ function renderExpenses() {
     return row;
   }).join('');
   const commEl = $('#commission');
-  if (commEl) {
-    commEl.value = preset.commission;      // дефолт (1-я ступень); фактическая — по цене авто при расчёте
-    commEl.readOnly = true;                // комиссия ступенчатая (commissionTiers), редактировать нельзя
-    commEl.title = 'Считается автоматически по стоимости авто (₽)';
-  }
+  if (commEl && !state.commissionManual) commEl.value = preset.commission; // до ввода цены — 1-я ступень
+  syncCommission();
   $('#bankFee').value = String(preset.bankFeePercent != null ? preset.bankFeePercent : 0).replace('.', ',');
+}
+
+/* --- Комиссия компании: авто (ступени по цене авто) ↔ вручную ------------
+ * Раньше поле пересчитывалось только по нажатию «Рассчитать», поэтому до
+ * расчёта в нём висела первая ступень и казалось, что цифра не зависит от
+ * бюджета. Теперь ступень подставляется прямо во время ввода цены. --- */
+function syncCommission() {
+  const el = $('#commission');
+  if (!el) return;
+  const hint = $('#commHint');
+  const btn = $('#commMode');
+
+  if (state.commissionManual) {
+    el.readOnly = false;
+    el.title = 'Сумма задана вручную под эту сделку';
+    if (btn) btn.textContent = '↺ авто';
+    if (hint) hint.textContent = 'Задана вручную — ступени по стоимости авто не применяются.';
+    return;
+  }
+
+  el.readOnly = true;
+  el.title = 'Считается автоматически по стоимости авто (₽)';
+  if (btn) btn.textContent = '✏️ вручную';
+
+  const priceRub = priceToRub(state.country, num('#carPrice'), cfg.rates);
+  const tier = commissionFor(cfg, state.country,
+    state.country === 'jp' && state.isSanctioned, priceRub);
+
+  if (tier === 'individual') {
+    el.value = '';
+    el.placeholder = 'по запросу';
+    if (hint) hint.textContent = 'Авто дороже 10 млн ₽ — вознаграждение обсуждается индивидуально.';
+    return;
+  }
+  el.placeholder = '';
+  if (tier != null) el.value = tier;
+  if (hint) {
+    hint.textContent = priceRub
+      ? 'Ступень по стоимости авто ' + fmt(Math.round(priceRub)) + ' (рыночный курс).'
+      : 'Подставится автоматически, как только укажете цену авто.';
+  }
 }
 
 /* ============================ СОБЫТИЯ ============================ */
@@ -400,7 +448,22 @@ function bindEvents() {
   // пересчёт доставки/фрахта от цены авто (Корея и санкционная Япония)
   $('#carPrice').addEventListener('input', () => {
     if (state.country === 'kr' || (state.country === 'jp' && state.isSanctioned)) updateDelivery();
+    syncCommission();   // ступень комиссии зависит от бюджета — показываем сразу
   });
+
+  // комиссия: ступень по цене ↔ своя сумма под сделку
+  const commModeBtn = $('#commMode');
+  if (commModeBtn) {
+    commModeBtn.addEventListener('click', () => {
+      state.commissionManual = !state.commissionManual;
+      syncCommission();
+      persistInputs();
+      hideResult();
+      haptic('light');
+    });
+  }
+  const commInput = $('#commission');
+  if (commInput) commInput.addEventListener('input', () => { if (state.commissionManual) persistInputs(); });
 
   // панель «Курсы на сегодня»: сворачивание + сохранение сразу при вводе
   $('#rateToggle').addEventListener('click', () => {
@@ -415,6 +478,7 @@ function bindEvents() {
     patchOverrides({ rates: { market: { [e.target.dataset.mrate]: v } } });
     updateRateSummary();
     if (state.country === 'kr') updateDelivery();
+    syncCommission();   // ступень считается от цены в ₽ по рыночному курсу
     haptic('light');
   });
 
@@ -542,6 +606,7 @@ function onCalculate() {
     deliveryForeign: num('#delivery'),
     bankFeePercent: num('#bankFee'),
     commission: num('#commission'),
+    commissionManual: state.commissionManual,
     expenses,
     logisticsCity: ($('#logCity') ? $('#logCity').value : (state.logisticsCity || '')).trim(),
   };
@@ -653,8 +718,13 @@ function renderResult(r) {
   lastResult = r;
   // в режиме «База» base.js дорисует сюда кнопку сохранения
   if (typeof onResultRendered === 'function') onResultRendered(r);
-  // синхронизируем поле комиссии с фактически применённой ступенью (по цене авто)
-  const commEl = $('#commission'); if (commEl) commEl.value = r.commissionIndividual ? 'по запросу' : r.commission;
+  // синхронизируем поле комиссии с фактически применённой ступенью (по цене авто);
+  // ручную сумму не трогаем — её ввёл брокер под конкретную сделку
+  if (!r.commissionManual) {
+    const commEl = $('#commission');
+    if (commEl && !r.commissionIndividual) commEl.value = r.commission;
+    syncCommission();
+  }
   $('#result').classList.remove('hidden');
   $('#result').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }

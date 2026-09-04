@@ -219,9 +219,14 @@ function calculate(input, cfg) {
   const expenses = allExpenses.filter(e => !(e && e.key === 'rf_logistics')); // услуги без логистики
   const expensesSum = expenses.reduce((s, e) => s + (Number(e.value) || 0), 0);
   // Комиссия компании (= депозит): ступенчато по стоимости авто в рублях (рыночный курс).
-  // Если таблицы нет — используется ручное поле #commission (обратная совместимость).
+  // commissionManual — брокер задал сумму под конкретную сделку (скидка, спецусловия):
+  // тогда ступени не применяются и берётся то, что введено в поле.
+  // Если таблицы ступеней нет — тоже ручное поле (обратная совместимость).
   const carPriceRub = priceToRub(input.country, input.carPrice || 0, cfg.rates);
-  const tieredCommission = commissionFor(cfg, input.country, !!input.sanctioned, carPriceRub);
+  const commissionManual = !!input.commissionManual;
+  const tieredCommission = commissionManual
+    ? null
+    : commissionFor(cfg, input.country, !!input.sanctioned, carPriceRub);
   const commissionIndividual = tieredCommission === 'individual';   // авто > 10 млн ₽
   const commission = commissionIndividual ? 0
     : (tieredCommission != null ? tieredCommission : (Number(input.commission) || 0));
@@ -270,6 +275,7 @@ function calculate(input, cfg) {
     logisticsCity,       // город доставки по РФ
     commission,
     commissionIndividual,   // true, если авто > 10 млн ₽ (комиссия «по запросу»)
+    commissionManual,       // true, если сумма задана вручную, а не ступенью
     rfExpenses,
     grandTotal,
     // этапы оплаты

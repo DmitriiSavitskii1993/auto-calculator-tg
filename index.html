@@ -207,8 +207,11 @@
         <div class="card-head">Расходы по РФ, ₽</div>
         <div id="expenseList"></div>
         <div class="field">
-          <label for="commission">Комиссия компании, ₽</label>
+          <label for="commission">Комиссия компании, ₽
+            <button type="button" class="mini-btn" id="commMode" style="float:right;margin-top:-2px">✏️ вручную</button>
+          </label>
           <input type="number" id="commission" inputmode="numeric">
+          <p class="hint" id="commHint" style="margin:6px 0 0"></p>
         </div>
       </section>
 
