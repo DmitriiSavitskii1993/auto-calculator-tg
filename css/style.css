@@ -179,6 +179,21 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   display: flex; align-items: center; justify-content: center;
   font-size: 24px; color: var(--hint); border: 1px dashed var(--border);
 }
+
+/* Превью кликабельно — открывает оригинал в полном разрешении */
+.car-thumb-wrap { position: relative; flex: none; cursor: pointer; line-height: 0; }
+.car-thumb-wrap:active { opacity: .8; }
+.car-thumb-wrap::after {
+  content: '⤓'; position: absolute; right: 3px; bottom: 3px;
+  width: 18px; height: 18px; border-radius: 5px;
+  background: rgba(0, 0, 0, .55); color: #fff;
+  font-size: 12px; line-height: 18px; text-align: center;
+}
+.car-thumb-count {
+  position: absolute; left: 3px; top: 3px; padding: 1px 5px;
+  border-radius: 5px; background: rgba(0, 0, 0, .55); color: #fff;
+  font-size: 11px; font-weight: 700; line-height: 16px;
+}
 .car-body { flex: 1; min-width: 0; }
 .car-title {
   font-weight: 700; font-size: 15px; line-height: 1.25;

@@ -936,7 +936,8 @@ function rateStaleness(c) {
 
 function carCardHtml(c) {
   // 320 px хватает на превью 92×70 даже на экране с тройной плотностью
-  const photo = (c.photos && c.photos[0]) ? wtApi.photoUrl(c.photos[0].url, 320) : null;
+  const photos = c.photos || [];
+  const photo = photos[0] ? wtApi.photoUrl(photos[0].url, 320) : null;
   const specs = [
     c.year, kmFmt(c.mileage_km),
     c.volume_cc ? (c.volume_cc / 1000).toFixed(1) + ' л' : null,
@@ -972,7 +973,10 @@ function carCardHtml(c) {
       '<input type="checkbox" class="car-pick" data-pick="' + c.id + '"' + checked +
         ' title="Отметить для подборки">' +
       (photo
-        ? '<img class="car-thumb" src="' + esc(photo) + '" alt="" loading="lazy">'
+        ? '<div class="car-thumb-wrap" data-act="orig" data-id="' + c.id + '" title="Открыть оригинал">' +
+            '<img class="car-thumb" src="' + esc(photo) + '" alt="" loading="lazy">' +
+            (photos.length > 1 ? '<span class="car-thumb-count">' + photos.length + '</span>' : '') +
+          '</div>'
         : '<div class="car-thumb car-thumb-empty">📷</div>') +
       '<div class="car-body">' +
         '<div class="car-title">' + (FLAG[c.country] || '') + ' ' +
@@ -1398,6 +1402,44 @@ async function copyCardImage(id, btn) {
   if (btn && ok) setTimeout(() => { btn.textContent = '🖼 Расчёт'; }, 1600);
 }
 
+/* Оригинал фото в полном разрешении — чтобы приложить к посту или отправить
+ * клиенту. В Telegram WebView скачивание файлов заблокировано, поэтому
+ * открываем во внешнем браузере: там сохранение работает длинным нажатием
+ * (телефон) или обычным «Сохранить как» (компьютер). Вне Telegram —
+ * обычная ссылка на скачивание. */
+/* Какое по счёту фото открывали в прошлый раз — чтобы повторные нажатия
+ * перебирали галерею по кругу, а не открывали одно и то же. Открыть их
+ * пачкой нельзя: браузеры глушат несколько окон подряд. */
+const _origCursor = {};
+
+async function openOriginals(carId) {
+  const car = baseState.items.find((c) => c.id === carId);
+  const photos = (car && car.photos) || [];
+  if (!photos.length) { toast('У этой карточки нет фото'); return; }
+
+  const idx = (_origCursor[carId] || 0) % photos.length;
+  _origCursor[carId] = idx + 1;
+  const url = wtApi.photoUrl(photos[idx].url);   // без w — оригинал
+  const nth = photos.length > 1 ? ` (${idx + 1} из ${photos.length})` : '';
+
+  // Именно inTelegram, а не «tg существует»: вне Telegram объект tg всё равно
+  // создаётся загруженным скриптом, и openLink там ничего не открывает.
+  if (inTelegram && tg && tg.openLink) {
+    tg.openLink(url);
+    toast('Оригинал открыт' + nth + ' — сохраните долгим нажатием' +
+      (photos.length > 1 ? '. Нажмите ещё раз для следующего.' : ''));
+    return;
+  }
+
+  // вне Telegram: честное скачивание файлом
+  const a = document.createElement('a');
+  a.href = url + (url.includes('?') ? '&' : '?') + 'download=1';
+  a.target = '_blank';
+  a.rel = 'noopener';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  toast('Скачивается оригинал' + nth);
+}
+
 async function baseCardAction(act, id, btn) {
   const car = baseState.items.find((c) => String(c.id) === String(id));
   try {
@@ -1409,6 +1451,8 @@ async function baseCardAction(act, id, btn) {
       baseState.total = Math.max(0, baseState.total - 1);
       renderBaseList();
       haptic('light');
+    } else if (act === 'orig') {
+      await openOriginals(id);
     } else if (act === 'image') {
       await copyCardImage(id, btn);
     } else if (act === 'offer') {
@@ -1601,5 +1645,6 @@ if (typeof window !== 'undefined') {
     buildSelectionText, copySelection, selectedCars, renderSelectionBar,
     postPrompt, EXTRACT_PROMPT, copyExtractPrompt, carToPostLines,
     setExtractPhoto, pasteImageFromClipboard, buildClientOffer, copyCardImage,
+    openOriginals,
   });
 }

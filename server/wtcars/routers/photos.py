@@ -107,6 +107,8 @@ async def get_photo(
     t: str = Query(..., description="подписанный токен на это фото"),
     w: int | None = Query(default=None, ge=64, le=1600,
                           description="ширина миниатюры; без него — оригинал"),
+    download: int = Query(default=0,
+                          description="1 — отдать как файл на скачивание, а не для показа"),
     session: AsyncSession = Depends(get_session),
 ):
     telegram_id = verify_photo_token(t, photo_id)
@@ -138,11 +140,14 @@ async def get_photo(
         if thumb != path:
             path, media = thumb, "image/jpeg"
 
-    return FileResponse(
-        path,
-        media_type=media,
-        headers={"Cache-Control": "private, max-age=3600"},
-    )
+    headers = {"Cache-Control": "private, max-age=3600"}
+    if download:
+        # Осмысленное имя файла: photo_7.png понятнее, чем 64 знака sha256,
+        # когда снимок уже лежит в загрузках среди других.
+        ext = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp"}.get(media, "bin")
+        headers["Content-Disposition"] = f'attachment; filename="wt_photo_{photo.id}.{ext}"'
+
+    return FileResponse(path, media_type=media, headers=headers)
 
 
 @router.delete("/cars/{car_id}/photos/{photo_id}")
