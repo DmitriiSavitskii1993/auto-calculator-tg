@@ -1454,16 +1454,21 @@ async function openOriginals(carId) {
   toast('Скачивается оригинал' + nth);
 }
 
-/* Кладёт картинку в буфер обмена в полном разрешении.
+/* Оригинал в буфер обмена, в полном разрешении.
  *
- * Буфер принимает только image/png — JPEG и WebP браузеры отклоняют,
- * поэтому неподходящий формат перерисовываем через canvas. Blob собираем
- * внутри ClipboardItem: Safari и WebView разрешают запись только в рамках
- * пользовательского жеста, а ожидание до вызова write() его теряет. */
-async function copyImageToClipboard(url) {
-  if (!window.ClipboardItem || !navigator.clipboard || !navigator.clipboard.write) return false;
+ * Буфер принимает только image/png — JPEG и WebP браузеры отклоняют, поэтому
+ * неподходящий формат перерисовываем через canvas.
+ *
+ * Файлы весят по 1,5–2 МБ, а раньше неудачная первая попытка записи тянула
+ * снимок повторно, и каждое следующее нажатие — тоже: в журнале сервера один
+ * файл уезжал по пять раз подряд. Держим уже скачанный блоб под рукой. */
+const _origBlobs = new Map();   // ссылка → Promise<Blob>
+const _ORIG_CACHE_MAX = 3;      // ~6 МБ потолок, дальше вытесняем самый старый
 
-  const asPng = async () => {
+function pngBlobFor(url) {
+  let p = _origBlobs.get(url);
+  if (p) return p;
+  p = (async () => {
     const res = await fetch(url);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const blob = await res.blob();
@@ -1472,16 +1477,27 @@ async function copyImageToClipboard(url) {
     const cv = document.createElement('canvas');
     cv.width = bitmap.width; cv.height = bitmap.height;
     cv.getContext('2d').drawImage(bitmap, 0, 0);
-    return new Promise((resolve) => cv.toBlob(resolve, 'image/png'));
-  };
+    const png = await new Promise((resolve) => cv.toBlob(resolve, 'image/png'));
+    if (!png) throw new Error('не удалось перекодировать в PNG');
+    return png;
+  })();
+  p.catch(() => _origBlobs.delete(url));   // неудачу не кэшируем — дадим повторить
+  _origBlobs.set(url, p);
+  if (_origBlobs.size > _ORIG_CACHE_MAX) _origBlobs.delete(_origBlobs.keys().next().value);
+  return p;
+}
 
+async function copyImageToClipboard(url) {
+  if (!window.ClipboardItem || !navigator.clipboard || !navigator.clipboard.write) return false;
+
+  // Промис передаём в ClipboardItem как есть: Safari разрешает запись только
+  // в рамках жеста пользователя, а ожидание блоба до вызова его теряет.
   try {
-    await navigator.clipboard.write([new ClipboardItem({ 'image/png': asPng() })]);
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlobFor(url) })]);
     return true;
   } catch (e) {
-    try {                                   // второй заход: сначала блоб, потом запись
-      const blob = await asPng();
-      if (!blob) return false;
+    try {                    // второй заход: блоб уже скачан, повторной загрузки нет
+      const blob = await pngBlobFor(url);
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
       return true;
     } catch (e2) { return false; }
