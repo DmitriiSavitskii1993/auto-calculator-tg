@@ -935,7 +935,8 @@ function rateStaleness(c) {
 }
 
 function carCardHtml(c) {
-  const photo = (c.photos && c.photos[0]) ? wtApi.photoUrl(c.photos[0].url) : null;
+  // 320 px хватает на превью 92×70 даже на экране с тройной плотностью
+  const photo = (c.photos && c.photos[0]) ? wtApi.photoUrl(c.photos[0].url, 320) : null;
   const specs = [
     c.year, kmFmt(c.mileage_km),
     c.volume_cc ? (c.volume_cc / 1000).toFixed(1) + ' л' : null,

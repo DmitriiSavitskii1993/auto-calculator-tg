@@ -105,6 +105,8 @@ async def upload_photos(
 async def get_photo(
     photo_id: int,
     t: str = Query(..., description="подписанный токен на это фото"),
+    w: int | None = Query(default=None, ge=64, le=1600,
+                          description="ширина миниатюры; без него — оригинал"),
     session: AsyncSession = Depends(get_session),
 ):
     telegram_id = verify_photo_token(t, photo_id)
@@ -130,9 +132,15 @@ async def get_photo(
     if not path.is_file():
         raise HTTPException(status_code=410, detail="file is gone")
 
+    media = photo.mime or "application/octet-stream"
+    if w:
+        thumb = storage.thumb_for(path, w)
+        if thumb != path:
+            path, media = thumb, "image/jpeg"
+
     return FileResponse(
         path,
-        media_type=photo.mime or "application/octet-stream",
+        media_type=media,
         headers={"Cache-Control": "private, max-age=3600"},
     )
 

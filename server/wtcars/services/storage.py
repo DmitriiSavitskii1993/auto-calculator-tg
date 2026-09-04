@@ -69,6 +69,32 @@ def delete_car_dir(car_id: int) -> None:
     shutil.rmtree(PHOTOS_DIR / str(car_id), ignore_errors=True)
 
 
+def thumb_for(path: Path, width: int) -> Path:
+    """
+    Миниатюра рядом с оригиналом, с кэшем на диске.
+
+    Оригиналы со скринов весят по 1.5–2 МБ, а в списке они показываются
+    квадратиком 92×70. Отдавать полный файл — значит гонять десяток
+    мегабайт на один экран; на мобильном интернете или через VPN картинки
+    просто не догружаются. Поэтому список просит ?w=320.
+    """
+    width = max(64, min(int(width), 1600))
+    dst = path.with_name(f"{path.stem}_w{width}.jpg")
+    if dst.exists() and dst.stat().st_mtime >= path.stat().st_mtime:
+        return dst
+    try:
+        with Image.open(path) as im:
+            im = ImageOps.exif_transpose(im)
+            if im.mode not in ("RGB", "L"):
+                im = im.convert("RGB")
+            if im.width > width:
+                im.thumbnail((width, width * 10), Image.LANCZOS)
+            im.save(dst, format="JPEG", quality=82, optimize=True)
+        return dst
+    except Exception:
+        return path          # не смогли ужать — отдадим оригинал, это не повод падать
+
+
 def to_ai_jpeg(data: bytes, max_edge: int = AI_IMAGE_MAX_EDGE) -> bytes:
     """
     Копия для модели: EXIF-поворот применён, длинная сторона ≤ max_edge, JPEG q85.

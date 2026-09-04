@@ -155,10 +155,15 @@ const wtApi = {
     if (dromUrl) fd.append('drom_url', dromUrl);
     return wtFetch('/extract', { method: 'POST', body: fd });
   },
-  /* Ссылка на фото приходит от сервера уже подписанной и относительной. */
-  photoUrl: (relative) => (relative || '').startsWith('http')
-    ? relative
-    : WT_API_BASE.replace(/\/wtapi$/, '') + relative,
+  /* Ссылка на фото приходит от сервера уже подписанной и относительной.
+   * width — просим миниатюру: оригиналы весят по 1.5–2 МБ, и десяток их
+   * на одном экране просто не догружается на мобильном или через VPN. */
+  photoUrl: (relative, width) => {
+    const rel = relative || '';
+    const abs = rel.startsWith('http') ? rel : WT_API_BASE.replace(/\/wtapi$/, '') + rel;
+    if (!width) return abs;
+    return abs + (abs.includes('?') ? '&' : '?') + 'w=' + width;
+  },
 };
 
 if (typeof window !== 'undefined') {
