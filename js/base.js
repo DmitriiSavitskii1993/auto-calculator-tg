@@ -1413,12 +1413,15 @@ async function copyCardImage(id, btn) {
 const _origCursor = {};
 
 async function openOriginals(carId) {
-  const car = baseState.items.find((c) => c.id === carId);
+  // id из data-атрибута приходит строкой — сравниваем по числу, иначе
+  // строгое равенство не сработает и покажется «нет фото»
+  const wanted = Number(carId);
+  const car = baseState.items.find((c) => Number(c.id) === wanted);
   const photos = (car && car.photos) || [];
   if (!photos.length) { toast('У этой карточки нет фото'); return; }
 
-  const idx = (_origCursor[carId] || 0) % photos.length;
-  _origCursor[carId] = idx + 1;
+  const idx = (_origCursor[wanted] || 0) % photos.length;
+  _origCursor[wanted] = idx + 1;
   const url = wtApi.photoUrl(photos[idx].url);   // без w — оригинал
   const nth = photos.length > 1 ? ` (${idx + 1} из ${photos.length})` : '';
 
