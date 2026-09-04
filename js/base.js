@@ -974,7 +974,10 @@ function carCardHtml(c) {
         ' title="Отметить для подборки">' +
       (photo
         ? '<div class="car-thumb-wrap" data-act="orig" data-id="' + c.id + '" title="Скопировать оригинал в буфер">' +
-            '<img class="car-thumb" src="' + esc(photo) + '" alt="" loading="lazy">' +
+            // Без loading="lazy": список рисуется, пока экран ещё скрыт, и в WebView
+            // Telegram отложенные картинки для части карточек так и не запрашивались —
+            // фото появлялось лишь у двух-трёх. Миниатюра весит ~15 КБ, откладывать нечего.
+            '<img class="car-thumb" src="' + esc(photo) + '" alt="" width="92" height="70" decoding="async">' +
             (photos.length > 1 ? '<span class="car-thumb-count">' + photos.length + '</span>' : '') +
           '</div>'
         : '<div class="car-thumb car-thumb-empty">📷</div>') +

@@ -254,7 +254,7 @@ const CALC_DATA = {
     jp_sanctioned: {
       label: 'Япония 🇯🇵 (санкции)',
       currency: 'JPY',
-      commission: 50000,
+      commission: 150000,  // санкционное авто — фикс по всем машинам, ступени не применяются
       bankFeePercent: 1.5,
       items: [
         { key:'broker',   label:'Услуги брокера / СБКТС / ЭПТС / Лаборатория', short:'Брокер/СБКТС/ЭПТС', value:50000 },
