@@ -973,7 +973,7 @@ function carCardHtml(c) {
       '<input type="checkbox" class="car-pick" data-pick="' + c.id + '"' + checked +
         ' title="Отметить для подборки">' +
       (photo
-        ? '<div class="car-thumb-wrap" data-act="orig" data-id="' + c.id + '" title="Открыть оригинал">' +
+        ? '<div class="car-thumb-wrap" data-act="orig" data-id="' + c.id + '" title="Скопировать оригинал в буфер">' +
             '<img class="car-thumb" src="' + esc(photo) + '" alt="" loading="lazy">' +
             (photos.length > 1 ? '<span class="car-thumb-count">' + photos.length + '</span>' : '') +
           '</div>'
@@ -1425,22 +1425,64 @@ async function openOriginals(carId) {
   const url = wtApi.photoUrl(photos[idx].url);   // без w — оригинал
   const nth = photos.length > 1 ? ` (${idx + 1} из ${photos.length})` : '';
 
-  // Именно inTelegram, а не «tg существует»: вне Telegram объект tg всё равно
-  // создаётся загруженным скриптом, и openLink там ничего не открывает.
-  if (inTelegram && tg && tg.openLink) {
-    tg.openLink(url);
-    toast('Оригинал открыт' + nth + ' — сохраните долгим нажатием' +
+  // Сначала пробуем положить оригинал в буфер — это то, что нужно чаще
+  // всего: вставить фото в пост или в переписку с клиентом.
+  if (await copyImageToClipboard(url)) {
+    haptic('medium');
+    toast('🖼 Оригинал в буфере' + nth + ' — вставьте в пост или клиенту' +
       (photos.length > 1 ? '. Нажмите ещё раз для следующего.' : ''));
     return;
   }
 
-  // вне Telegram: честное скачивание файлом
+  // Буфер недоступен (частая история в мобильном WebView) — открываем файл.
+  // Именно inTelegram, а не «tg существует»: вне Telegram объект tg всё равно
+  // создаётся загруженным скриптом, и openLink там ничего не открывает.
+  if (inTelegram && tg && tg.openLink) {
+    tg.openLink(url);
+    toast('Буфер недоступен — оригинал открыт' + nth + ', сохраните долгим нажатием');
+    return;
+  }
+
   const a = document.createElement('a');
   a.href = url + (url.includes('?') ? '&' : '?') + 'download=1';
   a.target = '_blank';
   a.rel = 'noopener';
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   toast('Скачивается оригинал' + nth);
+}
+
+/* Кладёт картинку в буфер обмена в полном разрешении.
+ *
+ * Буфер принимает только image/png — JPEG и WebP браузеры отклоняют,
+ * поэтому неподходящий формат перерисовываем через canvas. Blob собираем
+ * внутри ClipboardItem: Safari и WebView разрешают запись только в рамках
+ * пользовательского жеста, а ожидание до вызова write() его теряет. */
+async function copyImageToClipboard(url) {
+  if (!window.ClipboardItem || !navigator.clipboard || !navigator.clipboard.write) return false;
+
+  const asPng = async () => {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const blob = await res.blob();
+    if (blob.type === 'image/png') return blob;
+    const bitmap = await createImageBitmap(blob);
+    const cv = document.createElement('canvas');
+    cv.width = bitmap.width; cv.height = bitmap.height;
+    cv.getContext('2d').drawImage(bitmap, 0, 0);
+    return new Promise((resolve) => cv.toBlob(resolve, 'image/png'));
+  };
+
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': asPng() })]);
+    return true;
+  } catch (e) {
+    try {                                   // второй заход: сначала блоб, потом запись
+      const blob = await asPng();
+      if (!blob) return false;
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      return true;
+    } catch (e2) { return false; }
+  }
 }
 
 async function baseCardAction(act, id, btn) {
@@ -1514,6 +1556,24 @@ async function uploadBasePhotos(input) {
 function bindBaseEvents() {
   const screen = $('#screenBase');
   if (!screen) return;
+
+  // Картинка не загрузилась — пробуем ещё дважды. На нестабильной сети
+  // (VPN, мобильный интернет) часть соединений просто рвётся, и без
+  // повтора карточка навсегда остаётся без превью. Событие error не
+  // всплывает, поэтому слушаем на фазе перехвата.
+  screen.addEventListener('error', (e) => {
+    const img = e.target;
+    if (!img || img.tagName !== 'IMG' || !img.classList.contains('car-thumb')) return;
+    const tries = Number(img.dataset.retry || 0);
+    if (tries >= 2) {
+      const wrap = img.closest('.car-thumb-wrap');
+      if (wrap) wrap.innerHTML = '<div class="car-thumb car-thumb-empty" title="Фото не загрузилось">⚠️</div>';
+      return;
+    }
+    img.dataset.retry = String(tries + 1);
+    const base = img.src.split('#')[0];
+    setTimeout(() => { img.src = base + '#r' + (tries + 1); }, 400 * (tries + 1));
+  }, true);
 
   screen.addEventListener('click', (e) => {
     const pick = e.target.closest('[data-pick]');

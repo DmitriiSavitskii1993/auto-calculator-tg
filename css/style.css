@@ -184,7 +184,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 .car-thumb-wrap { position: relative; flex: none; cursor: pointer; line-height: 0; }
 .car-thumb-wrap:active { opacity: .8; }
 .car-thumb-wrap::after {
-  content: '⤓'; position: absolute; right: 3px; bottom: 3px;
+  content: '⧉'; position: absolute; right: 3px; bottom: 3px;
   width: 18px; height: 18px; border-radius: 5px;
   background: rgba(0, 0, 0, .55); color: #fff;
   font-size: 12px; line-height: 18px; text-align: center;
