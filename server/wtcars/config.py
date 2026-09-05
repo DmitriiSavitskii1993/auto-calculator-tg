@@ -43,6 +43,13 @@ AUTH_MAX_AGE = _int("AUTH_MAX_AGE", 86400)
 # пользователя на старте). Заполненный — белый список telegram_id.
 OWNER_TELEGRAM_IDS = [int(x) for x in _list("OWNER_TELEGRAM_IDS")]
 
+# Общая база на несколько аккаунтов одного человека (личный и рабочий Telegram).
+# Если задан — каждый допущенный аккаунт работает от имени этого владельца:
+# карточки, фото и подборки у них общие, а не по отдельной базе на аккаунт.
+# Пусто — у каждого своя база.
+_primary = os.getenv("OWNER_PRIMARY_TELEGRAM_ID", "").strip()
+OWNER_PRIMARY_TELEGRAM_ID = int(_primary) if _primary else None
+
 # --- CORS: откуда открывается Mini App ---
 ALLOWED_ORIGINS = _list("ALLOWED_ORIGINS") or [
     "https://dmitriisavitskii1993.github.io",

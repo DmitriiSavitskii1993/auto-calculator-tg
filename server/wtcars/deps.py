@@ -3,7 +3,7 @@ from fastapi import Depends, Header, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config import OWNER_TELEGRAM_IDS
+from config import OWNER_PRIMARY_TELEGRAM_ID, OWNER_TELEGRAM_IDS
 from database import get_session
 from models import Owner
 from security import decode_jwt
@@ -18,6 +18,13 @@ def check_allowed(telegram_id: int) -> None:
 async def get_or_create_owner(
     session: AsyncSession, telegram_id: int, user: dict | None = None
 ) -> Owner:
+    # Общая база: второй аккаунт того же человека (рабочий Telegram) работает от
+    # имени основного владельца — иначе он получил бы свою пустую базу и не увидел
+    # бы ни карточек, ни фото. Отдельной строки в owners для него не заводим.
+    if OWNER_PRIMARY_TELEGRAM_ID and telegram_id != OWNER_PRIMARY_TELEGRAM_ID:
+        telegram_id = OWNER_PRIMARY_TELEGRAM_ID
+        user = None            # имя и username остаются от основного аккаунта
+
     owner = (
         await session.execute(select(Owner).where(Owner.telegram_id == telegram_id))
     ).scalar_one_or_none()
