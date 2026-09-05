@@ -4,8 +4,11 @@
 const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
 const inTelegram = !!(tg && tg.initData !== undefined && tg.platform && tg.platform !== 'unknown');
 
-// Адрес бэкенда бота (Render). Пусто → отправка через t.me/share.
-const BACKEND_URL = 'https://auto-calculator-tg.onrender.com';
+// Адрес бэкенда бота. Пусто → отправка через t.me/share.
+// Был Render на бесплатном тарифе: он засыпал после 15 минут простоя, и первая
+// отправка за день упиралась в подъём с нуля — замерено 16,4 с. Теперь бот живёт
+// на том же сервере, что и база авто: 0,07 с, засыпать нечему.
+const BACKEND_URL = 'https://publiosmm.ru/wtbot';
 
 /* --- состояние --- */
 const state = {

@@ -6,14 +6,28 @@
  *    WEBAPP_URL — адрес размещённого Mini App (например, GitHub Pages)
  * ========================================================================= */
 require('dotenv').config();
-const { Bot, InlineKeyboard } = require('grammy');
+const { Bot, InlineKeyboard, webhookCallback } = require('grammy');
 const crypto = require('crypto');
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const WEBAPP_URL = process.env.WEBAPP_URL;
 
+/* Режим получения сообщений.
+ *   polling  — опрос Telegram (по умолчанию; так удобно запускать локально);
+ *   webhook  — Telegram сам стучится к нам. На сервере нужен именно он:
+ *              webhook исключителен, и как только он установлен, Telegram
+ *              перестаёт отдавать сообщения любому другому экземпляру бота. */
+const BOT_MODE = process.env.BOT_MODE === 'webhook' ? 'webhook' : 'polling';
+const WEBHOOK_URL = process.env.WEBHOOK_URL || '';
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || '';
+const WEBHOOK_PATH = '/tg';
+
 if (!BOT_TOKEN || !WEBAPP_URL) {
   console.error('❌ Укажите BOT_TOKEN и WEBAPP_URL в файле .env');
+  process.exit(1);
+}
+if (BOT_MODE === 'webhook' && !WEBHOOK_URL) {
+  console.error('❌ Для режима webhook нужен WEBHOOK_URL');
   process.exit(1);
 }
 
@@ -82,7 +96,19 @@ const escapeHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
 /* --- HTTP-сервер: /prepare готовит форматированное сообщение для отправки в чат --- */
 const http = require('http');
 const PORT = process.env.PORT || 3000;
+const handleWebhook = BOT_MODE === 'webhook' ? webhookCallback(bot, 'http') : null;
+
 http.createServer((req, res) => {
+  // Приём обновлений от Telegram — до заголовков CORS: это не браузер.
+  // Секрет подтверждает, что стучится действительно Telegram, а не тот, кто
+  // подобрал адрес.
+  if (handleWebhook && req.method === 'POST' && req.url === WEBHOOK_PATH) {
+    if (WEBHOOK_SECRET && req.headers['x-telegram-bot-api-secret-token'] !== WEBHOOK_SECRET) {
+      res.writeHead(401); return res.end();
+    }
+    return handleWebhook(req, res);
+  }
+
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -118,4 +144,15 @@ http.createServer((req, res) => {
   res.writeHead(404); res.end();
 }).listen(PORT, () => console.log('HTTP-сервер на порту ' + PORT));
 
-bot.start({ onStart: (info) => console.log(`🤖 Бот @${info.username} запущен`) });
+if (BOT_MODE === 'webhook') {
+  // init() нужен до приёма обновлений: без него grammy не знает, кто он такой.
+  bot.init()
+    .then(() => bot.api.setWebhook(WEBHOOK_URL, {
+      secret_token: WEBHOOK_SECRET || undefined,
+      allowed_updates: ['message', 'callback_query'],
+    }))
+    .then(() => console.log(`🤖 Бот @${bot.botInfo.username} принимает обновления по webhook`))
+    .catch((e) => { console.error('Не удалось установить webhook:', e.message); process.exit(1); });
+} else {
+  bot.start({ onStart: (info) => console.log(`🤖 Бот @${info.username} запущен опросом`) });
+}
