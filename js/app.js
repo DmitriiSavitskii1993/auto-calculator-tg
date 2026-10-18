@@ -287,6 +287,9 @@ function renderCountry() {
   $('#fieldAuction').classList.toggle('hidden', !(isJp && !state.isSanctioned));
   $('#fieldSanctioned').classList.toggle('hidden', !isJp);
   $('#fieldDvfo').classList.toggle('hidden', !isJp);
+  // поля карточки под страну: город продажи — Китай, страховая история — Корея
+  $$('.only-cn').forEach(el => el.classList.toggle('hidden', state.country !== 'cn'));
+  $$('.only-kr').forEach(el => el.classList.toggle('hidden', state.country !== 'kr'));
   // объём — скрыт для электрокара
   $('#fieldVolume').classList.toggle('hidden', state.isElectric);
   // возраст

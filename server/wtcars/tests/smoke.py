@@ -389,6 +389,20 @@ def main() -> int:
         r = c.post(f"/wtapi/cars/{car_id}/send", headers=H, data={"text": "🚗 Пост клиенту"})
         check("Business отключили — снова альбом мне", r.json().get("mode") == "self", r.text[:120])
 
+        print("\n5д. Поля страны: город продажи и страховая история")
+        r = c.patch(f"/wtapi/cars/{car_id}", headers=H, json={"vehicle": {
+            "sale_city": "Шанхай", "insurance_cases": 2, "insurance_paid_krw": 3450000}})
+        got = r.json() if r.status_code == 200 else {}
+        check("поля страны сохранены", (got.get("sale_city"), got.get("insurance_cases"),
+              got.get("insurance_paid_krw")) == ("Шанхай", 2, 3450000), r.text[:160])
+        r = c.patch(f"/wtapi/cars/{car_id}", headers=H, json={"vehicle": {"insurance_cases": None}})
+        got = r.json()
+        check("явный null стирает только присланное поле",
+              got.get("insurance_cases") is None and got.get("insurance_paid_krw") == 3450000
+              and got.get("sale_city") == "Шанхай" and bool(got.get("title")), str(got.get("title")))
+        r = c.patch(f"/wtapi/cars/{car_id}", headers=H, json={"vehicle": {"insurance_cases": -1}})
+        check("отрицательное число случаев отвергнуто", r.status_code == 422)
+
         print("\n5г. Комиссия вручную перед отправкой")
         full = c.get(f"/wtapi/cars/{car_id}", headers=H).json()
         new_input = dict(full["calc_input"], commissionManual=True, commission=70000)

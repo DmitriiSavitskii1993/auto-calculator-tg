@@ -91,6 +91,9 @@ function collectVehicle() {
     auction_name: auctionName,
     drom_url: val('#dromUrl'),
     notes: val('#vehicleNotes'),
+    sale_city: state.country === 'cn' ? val('#saleCity') : null,
+    insurance_cases: state.country === 'kr' ? int('#insCases') : null,
+    insurance_paid_krw: state.country === 'kr' ? int('#insPaid') : null,
     price_foreign: num('#carPrice') || null,
     currency: { jp: 'JPY', kr: 'KRW', cn: 'CNY' }[state.country] || null,
   };
@@ -248,6 +251,14 @@ const EXTRACT_PROMPT = [
   '  A — вмятина, U — вмятина с заломом, W — царапина, S — ржавчина,',
   '  C — коррозия, P — след покраски, X — нужен ремонт, XX — замена детали.',
   '  Цифра рядом — серьёзность, больше значит хуже.',
+  '',
+  'ЕСЛИ АВТО ИЗ КОРЕИ (Encar и подобные) — "country": "kr", цена в вонах (KRW).',
+  '- insurance_cases — число страховых случаев из истории (보험이력/사고이력),',
+  '  0 если история чистая; insurance_paid_krw — общая сумма выплат в вонах.',
+  '  Если истории на скрине нет — не включай эти поля.',
+  '',
+  'ЕСЛИ АВТО ИЗ КИТАЯ — "country": "cn", цена в юанях (CNY).',
+  '- sale_city — город, где продаётся машина, по-русски (Шанхай, Пекин…).',
   '',
   'ЕСЛИ ЭТО СТРАНИЦА СТАТИСТИКИ ПРОДАЖ',
   'Там обычно несколько строк с ценами проданных лотов. Возьми машину,',
@@ -626,6 +637,9 @@ function applyExtraction(x) {
   setVal('#grade', f.auction_grade, 'auction_grade');
   setVal('#interiorGrade', f.interior_grade, 'interior_grade');
   setVal('#lotNo', f.lot_number, 'lot_number');
+  setVal('#saleCity', f.sale_city, 'sale_city');
+  setVal('#insCases', f.insurance_cases, 'insurance_cases');
+  setVal('#insPaid', f.insurance_paid_krw, 'insurance_paid_krw');
   if (f.drom_url) { const el = $('#dromUrl'); if (el && !el.value) el.value = f.drom_url; }
 
   // рукописные заметки/повреждения/опции с листа — в то же поле, что и ручной ввод
@@ -1188,6 +1202,7 @@ function buildSelectionText(cars, withPrompt, opts) {
  * ========================================================================= */
 function buildClientOffer(car) {
   const r = car.calc_result || {};
+  const country = car.country || (r.input && r.input.country);
   const L = [];
   const trim = (car.trim && String(car.trim).trim()) || 'BASE';
   const when = car.year ? car.year + (car.month ? ' (' + String(car.month).padStart(2, '0') + ')' : '') : '';
@@ -1209,9 +1224,22 @@ function buildClientOffer(car) {
   ].filter(Boolean).join(' · ');
   if (tech) L.push(tech);
 
-  if (car.auction_grade) {
+  // строка под страну: у японских — аукционный лист, у китайских — где продаётся,
+  // у корейских — страховая история с Encar
+  if (country === 'jp' && car.auction_grade) {
     L.push('Оценка аукциона: ' + car.auction_grade +
       (car.interior_grade ? ', салон ' + car.interior_grade : ''));
+  } else if (country === 'cn' && car.sale_city) {
+    L.push('Город продажи: ' + car.sale_city);
+  } else if (country === 'kr') {
+    if (car.insurance_cases == null) {
+      L.push('Страховые случаи: нет данных');
+    } else if (car.insurance_cases === 0) {
+      L.push('Страховых случаев не было');
+    } else {
+      L.push('Страховые случаи: ' + car.insurance_cases + ', выплаты ' +
+        (car.insurance_paid_krw != null ? '₩' + fmtNum(car.insurance_paid_krw) : 'нет данных'));
+    }
   }
 
   // Город в шапке — только если логистика по РФ действительно посчитана.
@@ -1221,18 +1249,9 @@ function buildClientOffer(car) {
   L.push('');
   L.push('💰 ПОД КЛЮЧ' + (hasRfLogistics && car.logistics_city ? ', ' + car.logistics_city : ' во Владивостоке') +
     ': ' + money(car.price_rub_total));
-  L.push('');
-
-  // Разбивка: те же четыре блока, что и в расчёте на экране
-  const foreign = (r.carCostRub || 0) + (r.bankFee || 0);
-  const services = (r.expensesSum || 0) + (r.commission || 0);
-  L.push('Что входит в сумму:');
-  if (foreign) L.push('• Авто с аукциона, доставка и фрахт — ' + money(foreign));
-  if (r.customsTotal) L.push('• Таможня: пошлина, сбор, утильсбор — ' + money(r.customsTotal));
-  if (services) L.push('• Оформление и услуги в РФ — ' + money(services));
   if (hasRfLogistics) {
-    L.push('• Доставка по России' + (car.logistics_city ? ' до города ' + car.logistics_city : '') +
-      ' — ' + money(r.logistics));
+    L.push('Доставка по России' + (car.logistics_city ? ' до города ' + car.logistics_city : '') +
+      ' включена — ' + money(r.logistics));
   } else {
     L.push('');
     L.push('Доставка по России в сумму не входит — посчитаем отдельно' +
@@ -1247,25 +1266,24 @@ function buildClientOffer(car) {
     stages.forEach((s, i) => L.push(`${i + 1}) ${s.label} — ${money(s.value)}`));
   }
 
-  // Льготный утиль — сильный и проверяемый аргумент, а не маркетинг
   if (r.utilPreferentialApplied === true && r.utilThresholdHp) {
     L.push('');
     L.push('✅ Мощность ' + Math.round(r.input && r.input.powerHp || car.power_hp) +
       ' л.с. — в пределах льготного порога ' + r.utilThresholdHp + ' л.с.');
-    L.push('   Утильсбор льготный: ' + money(r.utilFee) +
-      '. У авто мощнее порога он вырос бы в десятки раз.');
+    L.push('   Утильсбор льготный: ' + money(r.utilFee) + '.');
   } else if (r.utilPreferentialApplied === false && r.utilFee) {
     L.push('');
     L.push('ℹ️ Утильсбор ' + money(r.utilFee) + ' — мощность выше льготного порога ' +
-      (r.utilThresholdHp || 160) + ' л.с. Он уже учтён в сумме выше.');
+      (r.utilThresholdHp || 160) + ' л.с.');
   }
 
-  const rateDate = (car.rates_snapshot || {}).cbr_date;
+  const snap = car.rates_snapshot || {};
+  const rateDate = snap.cbr_date;
   const when2 = rateDate ? new Date(rateDate).toLocaleDateString('ru-RU') : new Date().toLocaleDateString('ru-RU');
+  const rate = snap.market ? rateDisplay(country, snap.market).replace(/(\d)\.(\d)/g, '$1,$2') : '';
   L.push('');
-  L.push('Расчёт по курсу на ' + when2 + '. Предварительный, справочный,');
-  L.push('не является публичной офертой: итоговые платежи определяет');
-  L.push('таможенный орган на дату оформления.');
+  L.push('Расчёт по курсу на ' + when2 + '.');
+  if (rate) L.push('Коммерческий курс: ' + rate);
 
   return L.join('\n');
 }
@@ -1394,9 +1412,9 @@ function cardCalcBlob(full) {
   return renderTableToBlob(buildTableLines(full.calc_result, true, cardConf(full)));
 }
 
-/* Окно «Комиссия компании» перед отправкой. Итог пересчитывается на лету тем
- * же calculate(), что и в калькуляторе. Возвращает новый calc_input или null
- * при отмене. Сумма, равная ступени, сохраняется как ступень — чтобы
+/* Окно «Перед отправкой»: поля страны и комиссия компании. Итог пересчитывается
+ * на лету тем же calculate(), что и в калькуляторе. Возвращает
+ * { input: новый calc_input, vehicle: изменённые поля карточки } или null. Сумма, равная ступени, сохраняется как ступень — чтобы
  * последующие пересчёты по курсу снова брали комиссию по ступеням. */
 function askCommission(full) {
   const conf = cardConf(full);
@@ -1407,12 +1425,27 @@ function askCommission(full) {
   const start = current.commissionIndividual ? '' : String(Math.round(current.commission || 0));
   const title = full.title || [full.make, full.model].filter(Boolean).join(' ') || 'Авто';
 
+  // Поля под страну — их часто нет в старых карточках, а в текст поста они идут
+  const country = full.country;
+  const field = (key, label, value, hint) =>
+    '<div class="wt-modal-label">' + label + '</div>' +
+    '<input type="text" class="wt-modal-field" data-f="' + key + '"' +
+    (key !== 'sale_city' ? ' inputmode="numeric"' : '') +
+    ' placeholder="' + esc(hint) + '" value="' + esc(value == null ? '' : value) + '">';
+  const countryFields =
+    country === 'cn' ? field('sale_city', 'Город продажи', full.sale_city, 'не указан') :
+    country === 'kr' ? field('insurance_cases', 'Страховых случаев (0 — не было)', full.insurance_cases, 'нет данных') +
+                       field('insurance_paid_krw', 'Сумма выплат, ₩', full.insurance_paid_krw, 'нет данных') :
+    '';
+
   const wrap = document.createElement('div');
   wrap.className = 'wt-modal';
   wrap.innerHTML =
     '<div class="wt-modal-box" role="dialog" aria-modal="true">' +
-      '<div class="wt-modal-title">Комиссия компании</div>' +
+      '<div class="wt-modal-title">Перед отправкой</div>' +
       '<div class="wt-modal-sub">' + esc(title) + '</div>' +
+      countryFields +
+      '<div class="wt-modal-label">Комиссия компании, ₽</div>' +
       '<input type="text" inputmode="numeric" class="wt-modal-input" placeholder="сумма, ₽">' +
       '<div class="wt-modal-hint">По ступени: ' + esc(tierText) +
         ' · <a href="#" data-m="tier">поставить</a></div>' +
@@ -1462,7 +1495,18 @@ function askCommission(full) {
       else if (act.dataset.m === 'tier') {
         input.value = byTier.commissionIndividual ? '' : fmtNum(byTier.commission);
         refresh();
-      } else if (act.dataset.m === 'ok') close(inputFor(parse()));
+      } else if (act.dataset.m === 'ok') {
+        // в карточку уходят только изменённые поля; пустое — «нет данных»
+        const vehicle = {};
+        wrap.querySelectorAll('.wt-modal-field').forEach((el) => {
+          const k = el.dataset.f;
+          const raw = el.value.trim();
+          const v = k === 'sale_city' ? (raw || null)
+            : (raw.replace(/[^\d]/g, '') === '' ? null : Number(raw.replace(/[^\d]/g, '')));
+          if (v !== (full[k] == null ? null : full[k])) vehicle[k] = v;
+        });
+        close({ input: inputFor(parse()), vehicle });
+      }
     });
   });
 }
@@ -1475,8 +1519,12 @@ async function sendCardPost(id, btn) {
   if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
   try {
     let full = await wtApi.getCar(id);
-    const newInput = await askCommission(full);
-    if (!newInput) { if (btn) btn.textContent = label; return; }
+    const answer = await askCommission(full);
+    if (!answer) { if (btn) btn.textContent = label; return; }
+    const newInput = answer.input;
+    if (Object.keys(answer.vehicle).length) {
+      full = await wtApi.updateCar(id, { vehicle: answer.vehicle });
+    }
 
     const result = calculate(newInput, cardConf(full));
     const old = full.calc_result || {};

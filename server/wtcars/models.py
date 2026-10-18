@@ -105,6 +105,11 @@ class Car(Base):
     vin: Mapped[str | None] = mapped_column(String(32))
     plate_no: Mapped[str | None] = mapped_column(String(32))
 
+    # --- по стране: Китай — где продаётся, Корея — страховая история (Encar) ---
+    sale_city: Mapped[str | None] = mapped_column(String(96))
+    insurance_cases: Mapped[int | None] = mapped_column(SmallInteger)   # None — нет данных
+    insurance_paid_krw: Mapped[int | None] = mapped_column(BigInteger)
+
     # --- фильтруемое: деньги ---
     price_foreign: Mapped[float | None] = mapped_column(Numeric(14, 2))
     currency: Mapped[str | None] = mapped_column(String(3))             # JPY|KRW|CNY

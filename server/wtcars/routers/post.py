@@ -306,9 +306,12 @@ async def _deliver(session: AsyncSession, actor_id: int, target: dict | None) ->
                 # Чаще всего — переписки не было последние сутки, а писать от
                 # имени аккаунта бот может только в недавно активные чаты.
                 log.info("business send to %s failed: %s", target.get("user_id"), e.desc)
-                note = (f"Не получилось отправить {name} от вашего имени "
-                        f"({e.desc}). Обычно так бывает, если вы не переписывались "
-                        "последние сутки. Пост ниже — перешлите его вручную.")
+                if "to self" in e.desc or int(target["user_id"]) == actor_id:
+                    note = "Себе от своего имени отправить нельзя — пост ниже."
+                else:
+                    note = (f"Не получилось отправить {name} от вашего имени "
+                            f"({e.desc}). Обычно так бывает, если вы не переписывались "
+                            "последние сутки. Пост ниже — перешлите его вручную.")
         if note is None or not note.startswith("✅"):
             await _send_album(client, actor_id, items, meta["text"])
         await _tg_call(client, "sendMessage", {

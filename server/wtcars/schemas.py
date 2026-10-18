@@ -72,6 +72,9 @@ class VehicleIn(BaseModel):
     currency: str | None = None
     notes: str | None = None
     description_ru: str | None = None
+    sale_city: str | None = Field(default=None, max_length=96)
+    insurance_cases: int | None = Field(default=None, ge=0, le=99)
+    insurance_paid_krw: int | None = Field(default=None, ge=0)
 
 
 class CarCreate(BaseModel):
@@ -147,6 +150,9 @@ class CarOut(BaseModel):
     auction_name: str | None = None
     lot_number: str | None = None
     color: str | None = None
+    sale_city: str | None = None
+    insurance_cases: int | None = None
+    insurance_paid_krw: int | None = None
 
     price_foreign: float | None = None
     currency: str | None = None

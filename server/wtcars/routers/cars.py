@@ -120,6 +120,11 @@ def _apply_vehicle(car: Car, v: VehicleIn) -> None:
             setattr(car, field, val)
     if v.price_foreign is not None:
         car.price_foreign = v.price_foreign
+    # Здесь пустое значение — тоже ответ: «страховых данных нет», город стёрли.
+    # Поэтому присланное явно записываем даже как None.
+    for field in ("sale_city", "insurance_cases", "insurance_paid_krw"):
+        if field in v.model_fields_set:
+            setattr(car, field, getattr(v, field))
     car.title = v.title or _build_title(v) or car.title
 
 

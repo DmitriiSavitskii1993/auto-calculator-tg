@@ -225,6 +225,9 @@ const COLUMN_ALIASES = {
   city:          ['город', 'city'],
   drom_url:      ['drom', 'drom_url', 'ссылка_drom', 'ссылка drom', 'ссылка'],
   notes:         ['заметки', 'примечание', 'notes'],
+  sale_city:     ['город_продажи', 'город продажи', 'sale_city'],
+  insurance_cases: ['страховые_случаи', 'страховые случаи', 'insurance_cases'],
+  insurance_paid_krw: ['страховые_выплаты', 'страховые выплаты', 'insurance_paid_krw'],
 };
 
 function normHeader(s) {
@@ -439,6 +442,9 @@ function buildRow(row, map, lineNo) {
     auction_name: auctionIndex != null ? CALC_DATA.auctions[auctionIndex].name : (get('auction_name') || null),
     drom_url: get('drom_url') || null,
     notes: get('notes') || null,
+    sale_city: country === 'cn' ? (get('sale_city') || null) : null,
+    insurance_cases: country === 'kr' ? asInt(get('insurance_cases')) : null,
+    insurance_paid_krw: country === 'kr' ? asInt(get('insurance_paid_krw')) : null,
     price_foreign: carPrice,
     currency: { jp: 'JPY', kr: 'KRW', cn: 'CNY' }[country] || null,
     source_type: 'manual',
@@ -512,6 +518,9 @@ const FIELD_ALIASES = {
   inspector_notes_ru: ['inspector_notes_ru', 'заметки инспектора', 'примечания инспектора'],
   notes: ['notes', 'заметки', 'примечание', 'примечания'],
   is_electric: ['is_electric', 'электрокар', 'электро', 'ev'],
+  sale_city: ['sale_city', 'город продажи', 'город_продажи'],
+  insurance_cases: ['insurance_cases', 'страховые случаи', 'страховых случаев', 'страховые_случаи'],
+  insurance_paid_krw: ['insurance_paid_krw', 'страховые выплаты', 'выплаты', 'страховые_выплаты'],
 };
 
 const _ALIAS_TO_FIELD = (() => {
@@ -536,7 +545,8 @@ function normalizePastedFields(raw) {
   const num = (v) => { const n = asNum(v); return n == null ? undefined : n; };
   const int = (v) => { const n = asInt(v); return n == null ? undefined : n; };
 
-  ['year', 'month', 'mileage_km', 'volume_cc', 'power_hp', 'power_kw', 'doors', 'seats']
+  ['year', 'month', 'mileage_km', 'volume_cc', 'power_hp', 'power_kw', 'doors', 'seats',
+    'insurance_cases', 'insurance_paid_krw']
     .forEach((k) => { if (f[k] !== undefined) f[k] = int(f[k]); });
   if (f.price_value !== undefined) f.price_value = num(f.price_value);
 
