@@ -302,6 +302,93 @@ def main() -> int:
         r = c.post("/wtapi/cars/999999/send", headers=H, data={"text": "привет"})
         check("чужую/несуществующую карточку не шлём", r.status_code == 404)
 
+        print("\n5в. Отправка клиенту через Telegram Business")
+        tg_reply = {"ok": True, "result": []}
+        IH = {"X-Internal-Token": post_router.internal_token()}
+        r = c.post("/wtapi/internal/tg", json={"kind": "cancel", "actor_id": 1})
+        check("внутренний вход без ключа закрыт", r.status_code == 403)
+
+        r = c.post("/wtapi/internal/tg", headers=IH, json={"kind": "business_connection", "connection": {
+            "id": "BC-1", "user": {"id": 777000111}, "user_chat_id": 777000111,
+            "is_enabled": True, "rights": {"can_reply": True}}})
+        check("подключение Business сохранено",
+              r.status_code == 200 and post_router.business_for(777000111) == "BC-1", r.text[:120])
+
+        tg_calls.clear()
+        r = c.post(f"/wtapi/cars/{car_id}/send", headers=H, data={"text": "🚗 Пост клиенту"},
+                   files={"calc_image": ("calc.png", tiny_png(), "image/png")})
+        check("с Business — пост отложен до выбора клиента",
+              r.status_code == 200 and r.json().get("mode") == "pick", r.text[:120])
+        check("бот прислал кнопку выбора клиента",
+              [m for m, _ in tg_calls] == ["sendMessage"] and b"request_users" in tg_calls[0][1])
+        req_id = json.loads(Path(post_router._pending_dir(777000111) / "meta.json").read_text())["request_id"]
+
+        tg_calls.clear()
+        r = c.post("/wtapi/internal/tg", headers=IH, json={
+            "kind": "users_shared", "actor_id": 777000111, "request_id": req_id + 1,
+            "users": [{"user_id": 555}]})
+        check("чужой/старый выбор клиента игнорируется", r.json().get("ignored") and not tg_calls)
+
+        r = c.post("/wtapi/internal/tg", headers=IH, json={
+            "kind": "users_shared", "actor_id": 777000111, "request_id": req_id,
+            "users": [{"user_id": 555, "first_name": "Иван"}]})
+        calls = [m for m, _ in tg_calls]
+        check("альбом ушёл клиенту + подтверждение мне", calls == ["sendMediaGroup", "sendMessage"], str(calls))
+        album = tg_calls[0][1] if tg_calls else b""
+        check("альбом от имени аккаунта и в чат клиента",
+              b"BC-1" in album and b"555" in album and b"attach://calc" in album)
+        from urllib.parse import unquote_plus
+        txt = lambda b: unquote_plus(b.decode("utf-8", "replace"))
+        check("подтверждение с именем клиента", "Иван" in txt(tg_calls[-1][1] if tg_calls else b""))
+
+        tg_calls.clear()
+        c.post("/wtapi/internal/tg", headers=IH, json={
+            "kind": "users_shared", "actor_id": 777000111, "request_id": req_id, "users": [{"user_id": 555}]})
+        check("повторный выбор после отправки — «пост устарел»",
+              [m for m, _ in tg_calls] == ["sendMessage"] and "устарел" in txt(tg_calls[0][1]))
+
+        # Telegram отказал в отправке от имени аккаунта — пост должен прийти мне
+        c.post(f"/wtapi/cars/{car_id}/send", headers=H, data={"text": "🚗 Пост клиенту"})
+        req_id = json.loads(Path(post_router._pending_dir(777000111) / "meta.json").read_text())["request_id"]
+        tg_calls.clear()
+
+        def tg_handler_biz_fail(request: httpx.Request) -> httpx.Response:
+            body = request.read()
+            tg_calls.append((request.url.path.rsplit("/", 1)[-1], body))
+            if b"BC-1" in body:
+                return httpx.Response(400, json={"ok": False, "error_code": 400,
+                                                 "description": "Bad Request: BUSINESS_PEER_USAGE_MISSING"})
+            return httpx.Response(200, json={"ok": True, "result": []})
+
+        post_router.httpx = types.SimpleNamespace(
+            AsyncClient=lambda **kw: httpx.AsyncClient(transport=httpx.MockTransport(tg_handler_biz_fail), **kw)
+        )
+        c.post("/wtapi/internal/tg", headers=IH, json={
+            "kind": "users_shared", "actor_id": 777000111, "request_id": req_id, "users": [{"user_id": 555}]})
+        calls = [m for m, _ in tg_calls]
+        check("отказ Business — альбом пришёл мне для пересылки",
+              calls == ["sendMediaGroup", "sendMediaGroup", "sendMessage"]
+              and b"777000111" in tg_calls[1][1] and b"BC-1" not in tg_calls[1][1], str(calls))
+        check("объяснение про последние сутки", "сутки" in txt(tg_calls[-1][1]))
+        post_router.httpx = types.SimpleNamespace(
+            AsyncClient=lambda **kw: httpx.AsyncClient(transport=httpx.MockTransport(tg_handler), **kw)
+        )
+
+        c.post(f"/wtapi/cars/{car_id}/send", headers=H, data={"text": "🚗 Пост клиенту"})
+        tg_calls.clear()
+        c.post("/wtapi/internal/tg", headers=IH, json={"kind": "send_self", "actor_id": 777000111})
+        check("«Прислать мне» — альбом мне без Business",
+              [m for m, _ in tg_calls] == ["sendMediaGroup", "sendMessage"] and b"BC-1" not in tg_calls[0][1])
+
+        c.post(f"/wtapi/cars/{car_id}/send", headers=H, data={"text": "🚗 Пост клиенту"})
+        c.post("/wtapi/internal/tg", headers=IH, json={"kind": "cancel", "actor_id": 777000111})
+        check("«Отмена» убирает отложенный пост", post_router._load_pending(777000111) is None)
+
+        c.post("/wtapi/internal/tg", headers=IH, json={"kind": "business_connection", "connection": {
+            "id": "BC-1", "user": {"id": 777000111}, "is_enabled": False, "rights": {"can_reply": True}}})
+        r = c.post(f"/wtapi/cars/{car_id}/send", headers=H, data={"text": "🚗 Пост клиенту"})
+        check("Business отключили — снова альбом мне", r.json().get("mode") == "self", r.text[:120])
+
         print("\n6. Правка и удаление")
         r = c.patch(f"/wtapi/cars/{car_id}", headers=H,
                     json={"status": "sold", "notes": "продано 28.08"})

@@ -1403,8 +1403,16 @@ async function sendCardPost(id, btn) {
     const res = await wtApi.sendPost(id, buildClientOffer(full), blob);
     haptic('medium');
     if (btn) btn.textContent = '✅ В чате';
-    const more = res && res.caption_separate ? ' Текст пришёл отдельным сообщением под фото — перешлите оба.' : '';
-    const go = await confirmAsync('Пост в чате с ботом.' + more + '\n\nЗакрыть приложение и переслать клиенту?');
+    let msg;
+    if (res && res.mode === 'pick') {
+      msg = 'В чате с ботом нажмите «👤 Выбрать клиента» — пост уйдёт ему от вашего имени.\n\nЗакрыть приложение?';
+    } else {
+      const more = res && res.caption_separate ? ' Текст пришёл отдельным сообщением под фото — перешлите оба.' : '';
+      msg = 'Пост в чате с ботом.' + more +
+        '\n\nЧтобы слать клиенту сразу: Настройки → Telegram для бизнеса → Чат-боты → добавьте этого бота.' +
+        '\n\nЗакрыть приложение и переслать клиенту?';
+    }
+    const go = await confirmAsync(msg);
     if (go && tg && tg.close) tg.close();
   } finally {
     setTimeout(() => { if (btn) { btn.textContent = label; btn.disabled = false; } }, 1600);

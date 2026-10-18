@@ -70,6 +70,64 @@ bot.on('message:web_app_data', async (ctx) => {
   }
 });
 
+/* --- Пост клиенту через Telegram Business ---
+ * Отправку делает сервис базы (wtcars): у него фото и карточки. Webhook у бота
+ * один, поэтому нужные события бот пересылает туда. Ключ выводится из токена
+ * бота — он одинаковый у обоих сервисов, отдельный секрет не нужен. */
+const WTAPI_INTERNAL_URL = process.env.WTAPI_INTERNAL_URL || 'http://127.0.0.1:8082/wtapi/internal/tg';
+const INTERNAL_TOKEN = crypto.createHmac('sha256', BOT_TOKEN).update('wtcars-internal').digest('hex');
+const SELF_LABEL = '📥 Прислать мне';
+const CANCEL_LABEL = '✖️ Отмена';
+
+async function relay(event) {
+  const res = await fetch(WTAPI_INTERNAL_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Internal-Token': INTERNAL_TOKEN },
+    body: JSON.stringify(event),
+    signal: AbortSignal.timeout(90000),
+  });
+  if (!res.ok) throw new Error('wtcars ' + res.status + ': ' + (await res.text()).slice(0, 200));
+}
+
+bot.use(async (ctx, next) => {
+  const conn = ctx.update.business_connection;
+  if (!conn) return next();
+  try {
+    await relay({ kind: 'business_connection', connection: conn });
+    const rights = conn.rights || {};
+    const canReply = rights.can_reply !== undefined ? rights.can_reply : conn.can_reply;
+    const text = !conn.is_enabled
+      ? 'Бот отключён от Telegram для бизнеса — посты будут приходить сюда, пересылайте их вручную.'
+      : canReply
+        ? '✅ Бот подключён к Telegram для бизнеса. Теперь «📤 Пост» в базе отправляет альбом клиенту от вашего имени.'
+        : 'Бот подключён, но без права отвечать. Включите «Отвечать на сообщения» в настройках бота в Telegram для бизнеса.';
+    await ctx.api.sendMessage(conn.user_chat_id, text);
+  } catch (e) { console.error('business_connection:', e.message); }
+});
+
+/* Отправка альбома идёт дольше 10 с, после которых Telegram считает webhook
+ * упавшим и присылает событие повторно — клиент получил бы пост дважды.
+ * Поэтому на событие отвечаем сразу, а отправку ведём в фоне. */
+function relayInBackground(ctx, event, failText) {
+  relay(event).catch((e) => {
+    console.error(event.kind + ':', e.message);
+    ctx.reply(failText).catch(() => {});
+  });
+}
+
+bot.on('message:users_shared', (ctx) => {
+  const us = ctx.message.users_shared;
+  relayInBackground(ctx,
+    { kind: 'users_shared', actor_id: ctx.from.id, request_id: us.request_id, users: us.users || [] },
+    'Не удалось отправить пост, попробуйте ещё раз из карточки.');
+});
+
+bot.hears([SELF_LABEL, CANCEL_LABEL], (ctx) => {
+  relayInBackground(ctx,
+    { kind: ctx.message.text === SELF_LABEL ? 'send_self' : 'cancel', actor_id: ctx.from.id },
+    'Сервер базы не ответил, попробуйте ещё раз.');
+});
+
 bot.catch((err) => console.error('Ошибка бота:', err));
 
 /* --- Проверка подписи initData из Telegram Mini App (возвращает user или null) --- */
@@ -149,10 +207,14 @@ if (BOT_MODE === 'webhook') {
   bot.init()
     .then(() => bot.api.setWebhook(WEBHOOK_URL, {
       secret_token: WEBHOOK_SECRET || undefined,
-      allowed_updates: ['message', 'callback_query'],
+      // business_message сюда намеренно не входит: переписка с клиентами боту не нужна
+      allowed_updates: ['message', 'callback_query', 'business_connection'],
     }))
     .then(() => console.log(`🤖 Бот @${bot.botInfo.username} принимает обновления по webhook`))
     .catch((e) => { console.error('Не удалось установить webhook:', e.message); process.exit(1); });
 } else {
-  bot.start({ onStart: (info) => console.log(`🤖 Бот @${info.username} запущен опросом`) });
+  bot.start({
+    allowed_updates: ['message', 'callback_query', 'business_connection'],
+    onStart: (info) => console.log(`🤖 Бот @${info.username} запущен опросом`),
+  });
 }
