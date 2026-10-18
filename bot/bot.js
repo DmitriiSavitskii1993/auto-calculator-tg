@@ -202,15 +202,34 @@ http.createServer((req, res) => {
   res.writeHead(404); res.end();
 }).listen(PORT, () => console.log('HTTP-сервер на порту ' + PORT));
 
+/* Сторож webhook. Чужая копия бота в режиме опроса (старый деплой, локальный
+ * запуск) при старте снимает webhook и забирает события себе — тогда выбор
+ * клиента и подключение Business сюда не доходят. Возвращаем webhook сразу:
+ * пока он стоит, Telegram отказывает опросу, и чужая копия отваливается. */
+const WEBHOOK_OPTS = {
+  secret_token: WEBHOOK_SECRET || undefined,
+  // business_message сюда намеренно не входит: переписка с клиентами боту не нужна
+  allowed_updates: ['message', 'callback_query', 'business_connection'],
+};
+
+async function guardWebhook() {
+  try {
+    const info = await bot.api.getWebhookInfo();
+    if (info.url !== WEBHOOK_URL) {
+      console.warn(`⚠️ webhook снят (было: "${info.url}") — чужая копия бота? Ставлю обратно`);
+      await bot.api.setWebhook(WEBHOOK_URL, WEBHOOK_OPTS);
+    }
+  } catch (e) { console.error('проверка webhook:', e.message); }
+}
+
 if (BOT_MODE === 'webhook') {
   // init() нужен до приёма обновлений: без него grammy не знает, кто он такой.
   bot.init()
-    .then(() => bot.api.setWebhook(WEBHOOK_URL, {
-      secret_token: WEBHOOK_SECRET || undefined,
-      // business_message сюда намеренно не входит: переписка с клиентами боту не нужна
-      allowed_updates: ['message', 'callback_query', 'business_connection'],
-    }))
-    .then(() => console.log(`🤖 Бот @${bot.botInfo.username} принимает обновления по webhook`))
+    .then(() => bot.api.setWebhook(WEBHOOK_URL, WEBHOOK_OPTS))
+    .then(() => {
+      console.log(`🤖 Бот @${bot.botInfo.username} принимает обновления по webhook`);
+      setInterval(guardWebhook, 60 * 1000);
+    })
     .catch((e) => { console.error('Не удалось установить webhook:', e.message); process.exit(1); });
 } else {
   bot.start({
