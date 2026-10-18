@@ -40,16 +40,28 @@ async def get_or_create_owner(
     return owner
 
 
+def _token_ids(authorization: str | None) -> tuple[int, int]:
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="not authenticated")
+    ids = decode_jwt(authorization.split(" ", 1)[1].strip())
+    if ids is None:
+        raise HTTPException(status_code=401, detail="not authenticated")
+    return ids
+
+
+def get_actor_telegram_id(authorization: str | None = Header(default=None)) -> int:
+    """Telegram-аккаунт, который сейчас пользуется приложением (не владелец общей базы)."""
+    return _token_ids(authorization)[1]
+
+
 async def get_current_owner(
     authorization: str | None = Header(default=None),
     session: AsyncSession = Depends(get_session),
 ) -> Owner:
-    if not authorization or not authorization.lower().startswith("bearer "):
-        raise HTTPException(status_code=401, detail="not authenticated")
-    telegram_id = decode_jwt(authorization.split(" ", 1)[1].strip())
-    if telegram_id is None:
-        raise HTTPException(status_code=401, detail="not authenticated")
-    check_allowed(telegram_id)
+    telegram_id, actor_id = _token_ids(authorization)
+    # Белый список проверяем по вошедшему аккаунту: иначе исключённый из него
+    # рабочий аккаунт продолжал бы входить по токену основного до конца срока.
+    check_allowed(actor_id)
 
     owner = (
         await session.execute(select(Owner).where(Owner.telegram_id == telegram_id))

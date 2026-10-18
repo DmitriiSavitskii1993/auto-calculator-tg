@@ -253,6 +253,55 @@ def main() -> int:
                    files=[("files", ("bad.png", "не картинка".encode(), "image/png"))])
         check("мусор вместо картинки отвергнут", r.status_code == 400, r.text[:100])
 
+        print("\n5б. Готовый пост в чат с ботом")
+        import io
+        import types
+
+        import httpx
+        from PIL import Image
+        from routers import post as post_router
+
+        buf = io.BytesIO()
+        Image.new("RGB", (4, 4), (30, 200, 30)).save(buf, format="PNG")
+        c.post(f"/wtapi/cars/{car_id}/photos", headers=H,
+               files=[("files", ("b.png", buf.getvalue(), "image/png"))])
+
+        tg_calls: list[tuple[str, bytes]] = []
+        tg_reply = {"ok": True, "result": []}
+
+        def tg_handler(request: httpx.Request) -> httpx.Response:
+            tg_calls.append((request.url.path.rsplit("/", 1)[-1], request.read()))
+            return httpx.Response(200, json=tg_reply)
+
+        post_router.httpx = types.SimpleNamespace(
+            AsyncClient=lambda **kw: httpx.AsyncClient(transport=httpx.MockTransport(tg_handler), **kw)
+        )
+
+        r = c.post(f"/wtapi/cars/{car_id}/send", headers=H,
+                   data={"text": "🚗 Toyota Corolla Fielder\n💰 ПОД КЛЮЧ: 1 900 000 ₽"},
+                   files={"calc_image": ("calc.png", tiny_png(), "image/png")})
+        check("пост отправлен", r.status_code == 200 and r.json().get("photos") == 3, r.text[:160])
+        check("одним альбомом, без отдельного текста",
+              [m for m, _ in tg_calls] == ["sendMediaGroup"], str([m for m, _ in tg_calls]))
+        body = tg_calls[0][1] if tg_calls else b""
+        check("альбом ушёл в чат вошедшего аккаунта", b"777000111" in body)
+        check("подпись приложена к альбому", "ПОД КЛЮЧ".encode() in body and b'"caption"' in body)
+        check("расчёт последним в альбоме",
+              body.find(b"attach://calc") > body.find(b"attach://p"), "")
+
+        tg_calls.clear()
+        r = c.post(f"/wtapi/cars/{car_id}/send", headers=H, data={"text": "я" * 1500})
+        check("длинный текст — альбом без подписи + отдельное сообщение",
+              r.status_code == 200 and [m for m, _ in tg_calls] == ["sendMediaGroup", "sendMessage"]
+              and b'"caption"' not in tg_calls[0][1], str([m for m, _ in tg_calls]))
+
+        tg_reply = {"ok": False, "error_code": 403, "description": "Forbidden: bot was blocked by the user"}
+        r = c.post(f"/wtapi/cars/{car_id}/send", headers=H, data={"text": "привет"})
+        check("бот заблокирован — понятная ошибка 409", r.status_code == 409, r.text[:160])
+
+        r = c.post("/wtapi/cars/999999/send", headers=H, data={"text": "привет"})
+        check("чужую/несуществующую карточку не шлём", r.status_code == 404)
+
         print("\n6. Правка и удаление")
         r = c.patch(f"/wtapi/cars/{car_id}", headers=H,
                     json={"status": "sold", "notes": "продано 28.08"})

@@ -55,16 +55,24 @@ def verify_webapp_initdata(init_data: str) -> dict | None:
         return None
 
 
-def create_jwt(telegram_id: int) -> str:
+def create_jwt(telegram_id: int, actor_id: int | None = None) -> str:
+    """sub — владелец базы; act — аккаунт, который реально вошёл (в общей базе они разные)."""
     now = int(time.time())
-    payload = {"sub": str(telegram_id), "iat": now, "exp": now + JWT_TTL_DAYS * 86400}
+    payload = {
+        "sub": str(telegram_id),
+        "act": str(actor_id if actor_id is not None else telegram_id),
+        "iat": now,
+        "exp": now + JWT_TTL_DAYS * 86400,
+    }
     return jwt.encode(payload, WT_JWT_SECRET, algorithm="HS256")
 
 
-def decode_jwt(token: str) -> int | None:
+def decode_jwt(token: str) -> tuple[int, int] | None:
+    """(владелец, вошедший аккаунт). У токенов, выданных до появления act, они совпадают."""
     try:
         payload = jwt.decode(token, WT_JWT_SECRET, algorithms=["HS256"])
-        return int(payload["sub"])
+        sub = int(payload["sub"])
+        return sub, int(payload.get("act") or sub)
     except Exception:
         return None
 

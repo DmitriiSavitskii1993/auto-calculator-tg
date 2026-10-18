@@ -1017,6 +1017,7 @@ function carCardHtml(c) {
         foreign +
         '<div class="car-badges">' + utilBadge + staleBadge + statusBadge + '</div>' +
         '<div class="car-actions">' +
+          '<button class="mini-btn" data-act="post" data-id="' + c.id + '">📤 Пост</button>' +
           '<button class="mini-btn" data-act="image" data-id="' + c.id + '">🖼 Расчёт</button>' +
           '<button class="mini-btn" data-act="offer" data-id="' + c.id + '">📄 Клиенту</button>' +
           '<button class="mini-btn" data-act="photos" data-id="' + c.id + '">📷 Фото</button>' +
@@ -1381,18 +1382,40 @@ async function recalcVisible(btn) {
  * Blob собираем ВНУТРИ ClipboardItem, не дожидаясь загрузки заранее:
  * Safari и WebView Telegram разрешают запись в буфер только в рамках
  * пользовательского жеста, а await до вызова write() его теряет. */
+/* Таблица расчёта карточки по курсам на день расчёта, а не сегодняшним */
+function cardCalcBlob(full) {
+  const snap = full.rates_snapshot || {};
+  const conf = (snap.cbr && snap.market)
+    ? Object.assign({}, cfg, { rates: { cbr: snap.cbr, market: snap.market } })
+    : cfg;
+  return renderTableToBlob(buildTableLines(full.calc_result, true, conf));
+}
+
+/* Пост клиенту: бот присылает в чат альбом со всеми фото, расчётом и текстом
+ * «Клиенту» — остаётся переслать. Прямо в чат клиента Mini App альбом
+ * отправить не может: Telegram даёт ей слать только одно сообщение. */
+async function sendCardPost(id, btn) {
+  const label = '📤 Пост';
+  if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+  try {
+    const full = await wtApi.getCar(id);
+    const blob = await cardCalcBlob(full);
+    const res = await wtApi.sendPost(id, buildClientOffer(full), blob);
+    haptic('medium');
+    if (btn) btn.textContent = '✅ В чате';
+    const more = res && res.caption_separate ? ' Текст пришёл отдельным сообщением под фото — перешлите оба.' : '';
+    const go = await confirmAsync('Пост в чате с ботом.' + more + '\n\nЗакрыть приложение и переслать клиенту?');
+    if (go && tg && tg.close) tg.close();
+  } finally {
+    setTimeout(() => { if (btn) { btn.textContent = label; btn.disabled = false; } }, 1600);
+  }
+}
+
 async function copyCardImage(id, btn) {
   const label = btn ? btn.textContent : null;
   if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
 
-  const buildBlob = async () => {
-    const full = await wtApi.getCar(id);
-    const snap = full.rates_snapshot || {};
-    const conf = (snap.cbr && snap.market)
-      ? Object.assign({}, cfg, { rates: { cbr: snap.cbr, market: snap.market } })
-      : cfg;
-    return renderTableToBlob(buildTableLines(full.calc_result, true, conf));
-  };
+  const buildBlob = async () => cardCalcBlob(await wtApi.getCar(id));
 
   let ok = false;
   try {
@@ -1544,6 +1567,8 @@ async function baseCardAction(act, id, btn) {
       haptic('light');
     } else if (act === 'orig') {
       await openOriginals(id);
+    } else if (act === 'post') {
+      await sendCardPost(id, btn);
     } else if (act === 'image') {
       await copyCardImage(id, btn);
     } else if (act === 'offer') {

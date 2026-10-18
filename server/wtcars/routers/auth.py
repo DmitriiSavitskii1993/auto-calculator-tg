@@ -20,7 +20,7 @@ async def auth_miniapp(body: AuthIn, session: AsyncSession = Depends(get_session
     owner = await get_or_create_owner(session, user["id"], user)
     await session.commit()
     return AuthOut(
-        token=create_jwt(owner.telegram_id),
+        token=create_jwt(owner.telegram_id, user["id"]),
         owner_id=owner.id,
         telegram_id=owner.telegram_id,
         username=owner.username,

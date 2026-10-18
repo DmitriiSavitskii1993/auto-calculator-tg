@@ -14,7 +14,7 @@ from sqlalchemy import text
 
 from config import ALLOWED_ORIGINS, DEBUG
 from database import SessionLocal
-from routers import auth, cars, extract, photos
+from routers import auth, cars, extract, photos, post
 from services import storage
 
 log = logging.getLogger("wtcars")
@@ -71,4 +71,5 @@ api.include_router(auth.router)
 api.include_router(cars.router)
 api.include_router(photos.router)
 api.include_router(extract.router)
+api.include_router(post.router)
 app.include_router(api)

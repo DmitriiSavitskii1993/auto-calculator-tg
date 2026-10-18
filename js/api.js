@@ -145,6 +145,13 @@ const wtApi = {
     Array.from(files).forEach((f) => fd.append('files', f, f.name || 'photo.jpg'));
     return wtFetch('/cars/' + carId + '/photos', { method: 'POST', body: fd });
   },
+  /* готовый пост: бот присылает альбом (фото + картинка расчёта) с подписью в чат с вошедшим */
+  sendPost: (carId, text, calcBlob) => {
+    const fd = new FormData();
+    fd.append('text', text);
+    if (calcBlob) fd.append('calc_image', calcBlob, 'calc.png');
+    return wtFetch('/cars/' + carId + '/send', { method: 'POST', body: fd });
+  },
   deletePhoto: (carId, photoId) =>
     wtFetch('/cars/' + carId + '/photos/' + photoId, { method: 'DELETE' }),
   /* распознавание скрина: файл + необязательные страна/ссылка на drom.ru */
