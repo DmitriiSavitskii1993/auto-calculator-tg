@@ -360,7 +360,7 @@ async def recalc_car(
     # берём из карточки, они не меняются
     _apply_calc(car, CarCreate(
         vehicle=VehicleIn(),
-        calc_input=car.calc_input,
+        calc_input=payload.calc_input or car.calc_input,
         calc_result=payload.calc_result,
         rates=payload.rates,
     ))

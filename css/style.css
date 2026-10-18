@@ -277,3 +277,19 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 /* Список обновляется: карточки остаются на месте, просто приглушены —
    моргание пустым экраном читается как тормоза, даже когда ответ за 0,1 с */
 #baseList.is-updating { opacity: .55; transition: opacity .12s ease; pointer-events: none; }
+
+/* Окно «Комиссия компании» перед отправкой поста */
+.wt-modal { position: fixed; inset: 0; z-index: 1000; background: rgba(0, 0, 0, .45);
+  display: flex; align-items: center; justify-content: center; padding: 16px; }
+.wt-modal-box { width: 100%; max-width: 360px; background: var(--card); color: var(--text);
+  border-radius: var(--radius); padding: 18px 16px 14px; box-shadow: 0 10px 30px rgba(0, 0, 0, .25); }
+.wt-modal-title { font-size: 17px; font-weight: 700; }
+.wt-modal-sub { font-size: 13px; color: var(--hint); margin: 2px 0 12px; }
+.wt-modal-input { width: 100%; box-sizing: border-box; font-size: 22px; font-weight: 600;
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--bg); color: var(--text); }
+.wt-modal-hint { font-size: 12.5px; color: var(--hint); margin-top: 6px; }
+.wt-modal-hint a { color: var(--link); }
+.wt-modal-total { font-size: 15px; font-weight: 700; color: var(--good); margin: 12px 0 14px; }
+.wt-modal-actions { display: flex; gap: 10px; align-items: stretch; }
+.wt-modal-actions .mini-btn { flex: 0 0 auto; padding: 0 16px; font-size: 15px; border-radius: 12px; }

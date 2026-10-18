@@ -389,6 +389,23 @@ def main() -> int:
         r = c.post(f"/wtapi/cars/{car_id}/send", headers=H, data={"text": "🚗 Пост клиенту"})
         check("Business отключили — снова альбом мне", r.json().get("mode") == "self", r.text[:120])
 
+        print("\n5г. Комиссия вручную перед отправкой")
+        full = c.get(f"/wtapi/cars/{car_id}", headers=H).json()
+        new_input = dict(full["calc_input"], commissionManual=True, commission=70000)
+        new_result = dict(full["calc_result"], commission=70000, commissionManual=True,
+                          grandTotal=full["calc_result"]["grandTotal"] - full["calc_result"]["commission"] + 70000)
+        r = c.post(f"/wtapi/cars/{car_id}/recalc", headers=H, json={
+            "calc_input": new_input, "calc_result": new_result, "rates": full["rates_snapshot"]})
+        got = r.json() if r.status_code == 200 else {}
+        check("пересчёт с новой комиссией сохранён", got.get("commission") == 70000
+              and got.get("price_rub_total") == round(new_result["grandTotal"]), r.text[:160])
+        check("ручная комиссия осталась в исходных данных",
+              got.get("calc_input", {}).get("commissionManual") is True)
+        r = c.post(f"/wtapi/cars/{car_id}/recalc", headers=H, json={
+            "calc_result": new_result, "rates": full["rates_snapshot"]})
+        check("пересчёт по курсу без calc_input не сбрасывает ручную комиссию",
+              r.json().get("calc_input", {}).get("commission") == 70000)
+
         print("\n6. Правка и удаление")
         r = c.patch(f"/wtapi/cars/{car_id}", headers=H,
                     json={"status": "sold", "notes": "продано 28.08"})

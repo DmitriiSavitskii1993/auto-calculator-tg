@@ -1382,13 +1382,89 @@ async function recalcVisible(btn) {
  * Blob собираем ВНУТРИ ClipboardItem, не дожидаясь загрузки заранее:
  * Safari и WebView Telegram разрешают запись в буфер только в рамках
  * пользовательского жеста, а await до вызова write() его теряет. */
-/* Таблица расчёта карточки по курсам на день расчёта, а не сегодняшним */
-function cardCalcBlob(full) {
+/* Конфиг с курсами на день расчёта карточки, а не сегодняшними */
+function cardConf(full) {
   const snap = full.rates_snapshot || {};
-  const conf = (snap.cbr && snap.market)
+  return (snap.cbr && snap.market)
     ? Object.assign({}, cfg, { rates: { cbr: snap.cbr, market: snap.market } })
     : cfg;
-  return renderTableToBlob(buildTableLines(full.calc_result, true, conf));
+}
+
+function cardCalcBlob(full) {
+  return renderTableToBlob(buildTableLines(full.calc_result, true, cardConf(full)));
+}
+
+/* Окно «Комиссия компании» перед отправкой. Итог пересчитывается на лету тем
+ * же calculate(), что и в калькуляторе. Возвращает новый calc_input или null
+ * при отмене. Сумма, равная ступени, сохраняется как ступень — чтобы
+ * последующие пересчёты по курсу снова брали комиссию по ступеням. */
+function askCommission(full) {
+  const conf = cardConf(full);
+  const base = Object.assign({}, full.calc_input);
+  const byTier = calculate(Object.assign({}, base, { commissionManual: false }), conf);
+  const tierText = byTier.commissionIndividual ? 'индивидуально (авто дороже 10 млн ₽)' : money(byTier.commission);
+  const current = full.calc_result || {};
+  const start = current.commissionIndividual ? '' : String(Math.round(current.commission || 0));
+  const title = full.title || [full.make, full.model].filter(Boolean).join(' ') || 'Авто';
+
+  const wrap = document.createElement('div');
+  wrap.className = 'wt-modal';
+  wrap.innerHTML =
+    '<div class="wt-modal-box" role="dialog" aria-modal="true">' +
+      '<div class="wt-modal-title">Комиссия компании</div>' +
+      '<div class="wt-modal-sub">' + esc(title) + '</div>' +
+      '<input type="text" inputmode="numeric" class="wt-modal-input" placeholder="сумма, ₽">' +
+      '<div class="wt-modal-hint">По ступени: ' + esc(tierText) +
+        ' · <a href="#" data-m="tier">поставить</a></div>' +
+      '<div class="wt-modal-total"></div>' +
+      '<div class="wt-modal-actions">' +
+        '<button class="mini-btn" data-m="cancel">Отмена</button>' +
+        '<button class="primary-btn" data-m="ok">📤 Отправить</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(wrap);
+
+  const input = wrap.querySelector('.wt-modal-input');
+  const totalEl = wrap.querySelector('.wt-modal-total');
+  input.value = start ? fmtNum(Number(start)) : '';
+
+  const parse = () => {
+    const digits = input.value.replace(/[^\d]/g, '');
+    return digits === '' ? null : Number(digits);
+  };
+  const inputFor = (v) => {
+    if (v === null || (!byTier.commissionIndividual && v === byTier.commission)) {
+      return Object.assign({}, base, { commissionManual: false, commission: '' });
+    }
+    return Object.assign({}, base, { commissionManual: true, commission: v });
+  };
+  const refresh = () => {
+    const r = calculate(inputFor(parse()), conf);
+    totalEl.textContent = 'Под ключ: ' + money(r.grandTotal) +
+      (r.commissionIndividual ? ' (без комиссии)' : '');
+  };
+  input.addEventListener('input', () => {
+    const v = parse();
+    input.value = v === null ? '' : fmtNum(v);
+    refresh();
+  });
+  refresh();
+  setTimeout(() => { input.focus(); input.select(); }, 50);
+
+  return new Promise((resolve) => {
+    const close = (val) => { wrap.remove(); resolve(val); };
+    wrap.addEventListener('click', (e) => {
+      const act = e.target.closest('[data-m]');
+      if (e.target === wrap) return close(null);
+      if (!act) return;
+      e.preventDefault();
+      if (act.dataset.m === 'cancel') close(null);
+      else if (act.dataset.m === 'tier') {
+        input.value = byTier.commissionIndividual ? '' : fmtNum(byTier.commission);
+        refresh();
+      } else if (act.dataset.m === 'ok') close(inputFor(parse()));
+    });
+  });
 }
 
 /* Пост клиенту: бот присылает в чат альбом со всеми фото, расчётом и текстом
@@ -1398,7 +1474,29 @@ async function sendCardPost(id, btn) {
   const label = '📤 Пост';
   if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
   try {
-    const full = await wtApi.getCar(id);
+    let full = await wtApi.getCar(id);
+    const newInput = await askCommission(full);
+    if (!newInput) { if (btn) btn.textContent = label; return; }
+
+    const result = calculate(newInput, cardConf(full));
+    const old = full.calc_result || {};
+    if (result.commission !== old.commission || !!result.commissionManual !== !!old.commissionManual) {
+      // Сохраняем в карточку: в базе должна остаться цена, которую видел клиент
+      const snap = full.rates_snapshot;
+      full = await wtApi.recalcCar(id, {
+        calc_input: newInput,
+        calc_result: result,
+        rates: (snap && snap.cbr && snap.market) ? snap : ratesSnapshot(),
+      });
+      const item = baseState.items.find((c) => String(c.id) === String(id));
+      if (item) {
+        Object.assign(item, { price_rub_total: full.price_rub_total, commission: full.commission });
+        renderBaseList();
+        btn = document.querySelector('.car-actions [data-act="post"][data-id="' + id + '"]') || btn;
+        if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+      }
+    }
+
     const blob = await cardCalcBlob(full);
     const res = await wtApi.sendPost(id, buildClientOffer(full), blob);
     haptic('medium');
