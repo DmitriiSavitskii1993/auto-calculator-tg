@@ -202,14 +202,22 @@ function calculate(input, cfg) {
   });
 
   // --- утильсбор ---
-  const utilCoef = findUtilCoef(cfg, !!input.isElectric, volumeCc, powerKw, powerHp, isOlderThan3);
-  const utilFee = cfg.utilBase * utilCoef;
   // порог льготного утиля + «сколько был бы льготный» — для предупреждения в UI («утиль-ловушка»)
   const _prefCoef = cfg.utilPreferentialCoef || { new: 0.17, old: 0.26 };
   const _prefHp = cfg.utilPreferentialHp || { ice: 160, ev: 80 };
   const utilThresholdHp = input.isElectric ? _prefHp.ev : _prefHp.ice;
   const utilPreferentialApplied = powerHp <= utilThresholdHp;
   const utilPreferentialFee = cfg.utilBase * (isOlderThan3 ? _prefCoef.old : _prefCoef.new);
+  // Коммерческий утиль (выше льготы) индексируется каждый год; льготный — нет.
+  // utilNextCoef — коэффициент следующего года, input.util2027 — считать сразу по нему.
+  const utilNext = cfg.utilNext || { year: 2027, factor: 1.10 };
+  const utilCoefNow = findUtilCoef(cfg, !!input.isElectric, volumeCc, powerKw, powerHp, isOlderThan3);
+  const utilCommercial = !utilPreferentialApplied;
+  const utilNextCoef = utilCommercial ? Math.round(utilCoefNow * utilNext.factor * 100) / 100 : utilCoefNow;
+  const utilUsesNext = !!input.util2027 && utilCommercial;
+  const utilCoef = utilUsesNext ? utilNextCoef : utilCoefNow;
+  const utilFee = cfg.utilBase * utilCoef;
+  const utilFeeNext = utilCommercial ? cfg.utilBase * utilNextCoef : null;
 
   // --- расходы по РФ (логистику по РФ выносим отдельной строкой) ---
   const allExpenses = input.expenses || [];
@@ -265,6 +273,9 @@ function calculate(input, cfg) {
     customsFee: duty.customsFee,
     utilFee,
     utilCoef,
+    utilNextYear: utilNext.year,  // год следующей индексации утиля
+    utilFeeNext,                  // коммерческий утиль по ставке следующего года; null — льготный
+    utilUsesNext,                 // true — расчёт уже по ставке следующего года
     utilThresholdHp,           // порог льготного утиля, л.с. (160 ДВС / 80 EV)
     utilPreferentialApplied,   // попал ли под льготу (мощность ≤ порога)
     utilPreferentialFee,       // сколько был бы утиль при льготе (для показа переплаты)

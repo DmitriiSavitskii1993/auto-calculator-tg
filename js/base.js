@@ -1279,7 +1279,9 @@ function buildClientOffer(car) {
     L.push('   Утильсбор льготный: ' + money(r.utilFee) + '.');
   } else if (r.utilPreferentialApplied === false && r.utilFee) {
     L.push('');
-    L.push('ℹ️ Утильсбор ' + money(r.utilFee) + ' — мощность выше льготного порога ' +
+    L.push('ℹ️ Утильсбор ' + money(r.utilFee) +
+      (r.utilFeeNext && !r.utilUsesNext ? ' (в ' + r.utilNextYear + ': ' + money(r.utilFeeNext) + ')' : '') +
+      ' — мощность выше льготного порога ' +
       (r.utilThresholdHp || 160) + ' л.с.');
   }
 

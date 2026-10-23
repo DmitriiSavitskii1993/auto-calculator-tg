@@ -696,7 +696,7 @@ function renderResult(r) {
     <div class="sec-head"><span>Таможенные платежи</span><span class="sec-sum">${fmt(r.customsTotal)}</span></div>
     <div class="row sub"><span class="k">Пошлина и таможенный сбор <span class="method-tag">(${r.dutyMethod})</span></span><span class="v">${fmt(r.duty + r.customsFee)}</span></div>
     ${evRows}
-    <div class="row sub"><span class="k">Утильсбор (коэф. ${r.utilCoef})</span><span class="v">${fmt(r.utilFee)}</span></div>
+    <div class="row sub"><span class="k">Утильсбор (коэф. ${r.utilCoef})${r.utilFeeNext && !r.utilUsesNext ? ` <span class="method-tag">(в ${r.utilNextYear}: ${fmt(r.utilFeeNext)})</span>` : ''}</span><span class="v">${fmt(r.utilFee)}</span></div>
     ${utilFlag}
 
     <div class="sec-head"><span>Услуги и расходы по РФ</span><span class="sec-sum">${fmt(rfBlock)}</span></div>
@@ -773,6 +773,8 @@ function buildTableLines(r, withStages, cfgUse) {
   const customsItems = [['  Пошлина+сбор', money(r.duty + r.customsFee)]];
   if (r.input.isElectric) { customsItems.push(['  Акциз', money(r.excise)]); customsItems.push(['  НДС ' + Math.round(conf.evVatPercent * 100) + '%', money(r.vat)]); }
   customsItems.push([`  Утиль (${r.utilCoef})`, money(r.utilFee)]);
+  // коммерческий утиль дорожает каждый год — показываем, сколько будет в следующем
+  if (r.utilFeeNext && !r.utilUsesNext) customsItems.push([`  ↳ утиль ${r.utilNextYear}`, money(r.utilFeeNext)]);
   sections.push({ head: ['ТАМОЖНЯ', money(r.customsTotal)], items: customsItems });
 
   const rfItems = r.expenses.filter(e => e.value > 0).map(e => ['  ' + (e.short || e.label), money(e.value)]);
@@ -864,7 +866,7 @@ function buildShareText(r, withStages) {
   t += `\n🛃 Таможенные платежи: ${money(r.customsTotal)}\n`;
   t += `• Пошлина и таможенный сбор: ${money(r.duty + r.customsFee)}\n`;
   if (r.input.isElectric) { t += `• Акциз: ${money(r.excise)}\n• НДС ${Math.round(cfg.evVatPercent * 100)}%: ${money(r.vat)}\n`; }
-  t += `• Утильсбор: ${money(r.utilFee)}\n`;
+  t += `• Утильсбор: ${money(r.utilFee)}${r.utilFeeNext && !r.utilUsesNext ? ` (в ${r.utilNextYear}: ${money(r.utilFeeNext)})` : ''}\n`;
   t += `\n🇷🇺 Услуги и расходы по РФ: ${money(r.expensesSum + r.commission)}\n`;
   r.expenses.forEach(e => { t += `• ${e.label}: ${money(e.value)}\n`; });
   t += `• Комиссия компании: ${r.commissionIndividual ? 'по запросу (авто > 10 млн ₽)' : money(r.commission)}\n`;

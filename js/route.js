@@ -25,7 +25,7 @@ const ROUTE_CITY = { msk: 'Москва', spb: 'Питер' };
 
 const routeState = {
   country: 'cn', border: 'ussuriysk', customs: 'rf', city: 'msk', condition: 'used',
-  isElectric: false, powerUnit: 'hp',
+  isElectric: false, powerUnit: 'hp', util2027: false,
 };
 let routeLast = null;   // { lines, plain } последнего расчёта — для копирования и отправки
 
@@ -43,6 +43,7 @@ function calculateRoute(inp, conf) {
     volumeCc: inp.isElectric ? 0 : (inp.volumeCc || 0),
     powerHp: inp.powerHp, powerKw: inp.powerKw,
     carPrice: inp.carPrice,
+    util2027: !!inp.util2027,
   };
 
   if (inp.country === 'kr') {
@@ -132,7 +133,7 @@ function routeSections(x, conf) {
     kg.push(['Пошлина+брокер КР', x.kgDutyUsd ? usd(x.kgDutyUsd) : 'не указано']);
     kg.push(['Курс', '$=' + m.USD + '₽']);
     S.push({ head: ['БИШКЕК', money(x.kgRub)], items: kg });
-    S.push({ head: ['УТИЛЬСБОР РФ', money(x.customs)], items: [[`Утиль (${r.utilCoef})`, money(r.utilFee)]] });
+    S.push({ head: ['УТИЛЬСБОР РФ', money(x.customs)], items: routeUtilItems(r, money) });
   } else {
     S.push({ head: ['ТАМОЖНЯ РФ', money(x.customs)], items: routeCustomsItems(r, conf, money) });
   }
@@ -151,7 +152,15 @@ function routeCustomsItems(r, conf, money) {
     items.push(['Акциз', money(r.excise)]);
     items.push(['НДС ' + Math.round(conf.evVatPercent * 100) + '%', money(r.vat)]);
   }
-  items.push([`Утиль (${r.utilCoef})`, money(r.utilFee)]);
+  return items.concat(routeUtilItems(r, money));
+}
+
+/* Утиль: по ставке 2027 — так и подписываем; иначе у коммерческого — сноска,
+ * сколько он будет стоить в 2027 году (льготный не индексируется). */
+function routeUtilItems(r, money) {
+  if (r.utilUsesNext) return [[`Утиль ${r.utilNextYear} (${r.utilCoef})`, money(r.utilFee)]];
+  const items = [[`Утиль (${r.utilCoef})`, money(r.utilFee)]];
+  if (r.utilFeeNext) items.push([`↳ утиль ${r.utilNextYear}`, money(r.utilFeeNext)]);
   return items;
 }
 
@@ -219,6 +228,7 @@ function routeRender() {
   $('#routeConditionField').classList.toggle('hidden', s.border !== 'khorgos');
   $('#routeVolumeField').classList.toggle('hidden', s.isElectric);
   $('#routeIsElectric').checked = s.isElectric;
+  $('#routeUtil2027').checked = s.util2027;
 
   const R = cfg.routeCn || CALC_DATA.routeCn;
   const prices = viaKg ? R.kgLogisticsUsd : R.rfLogisticsUsd;
@@ -280,7 +290,7 @@ function routeRestore() {
   const R = cfg.routeCn || CALC_DATA.routeCn;
   $('#routeDelivery').value = R.deliveryForeign;
   if (!d) return;
-  ['country', 'border', 'customs', 'city', 'condition', 'isElectric', 'powerUnit'].forEach((k) => {
+  ['country', 'border', 'customs', 'city', 'condition', 'isElectric', 'powerUnit', 'util2027'].forEach((k) => {
     if (d[k] !== undefined) routeState[k] = d[k];
   });
   routeState.country = 'cn';   // вкладка Кореи пока скрыта
@@ -303,6 +313,7 @@ function onRouteCalculate() {
   const power = routeNum('#routePower');
   const inp = {
     country: s.country, border: s.border, customs: s.customs, city: s.city, condition: s.condition,
+    util2027: s.util2027,
     carPrice: routeNum('#routePrice'), deliveryForeign: routeNum('#routeDelivery'),
     kgDutyUsd: routeNum('#routeKgDuty'),
     isElectric: s.isElectric, age: $('#routeAge').value,
@@ -388,6 +399,11 @@ function initRoute() {
         shareToChat('```\n' + routeLast.lines.map((o) => o.text).join('\n') + '\n```', routeLast.plain);
       }
     }
+  });
+  $('#routeUtil2027').addEventListener('change', (e) => {
+    routeState.util2027 = e.target.checked;
+    routeSave();
+    $('#routeResult').classList.add('hidden');
   });
   $('#routeIsElectric').addEventListener('change', (e) => {
     routeState.isElectric = e.target.checked;
