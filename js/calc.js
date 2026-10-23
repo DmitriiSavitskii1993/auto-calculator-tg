@@ -50,27 +50,36 @@ function priceToRubCbr(country, amountForeign, rates) {
 /* --- Поиск коэффициента утильсбора ---
  * Льготный коэффициент (0.17/0.26 → 3400/5200) применяется, если мощность ≤ порога
  * (160 л.с. для ДВС, 80 л.с. для электрокара). Выше порога — по таблице двс/лп или эл/лп. */
-function findUtilCoef(cfg, isElectric, volumeCc, powerKw, powerHp, isOlderThan3) {
-  const pref = cfg.utilPreferentialCoef || { new: 0.17, old: 0.26 };
+/* Льгота физлицу: мощность в пределах порога (включительно) и, у ДВС, объём
+ * не больше 3000 см³ — у более крупных двигателей в перечне льготного
+ * коэффициента нет даже при малой мощности. */
+function utilIsPreferential(cfg, isElectric, volumeCc, powerHp) {
   const thrHp = isElectric
     ? (cfg.utilPreferentialHp ? cfg.utilPreferentialHp.ev : 80)
     : (cfg.utilPreferentialHp ? cfg.utilPreferentialHp.ice : 160);
+  return powerHp <= thrHp && (isElectric || volumeCc <= (cfg.utilPreferentialMaxCc || 3000));
+}
 
-  // льготный утиль — мощность в пределах порога (включительно)
-  if (powerHp <= thrHp) return isOlderThan3 ? pref.old : pref.new;
+/* year: undefined — текущие ставки (cNew/cOld), 'next' — следующего года (cNew27/cOld27) */
+function findUtilCoef(cfg, isElectric, volumeCc, powerKw, powerHp, isOlderThan3, year) {
+  const pref = cfg.utilPreferentialCoef || { new: 0.17, old: 0.26 };
+  if (utilIsPreferential(cfg, isElectric, volumeCc, powerHp)) return isOlderThan3 ? pref.old : pref.new;
+  const pick = (row) => year === 'next'
+    ? (isOlderThan3 ? row.cOld27 : row.cNew27)
+    : (isOlderThan3 ? row.cOld : row.cNew);
 
   // выше порога — детальная таблица коэффициентов.
   // ищем по НИЖНЕЙ границе мощности (устойчиво к округлению кВт и стыкам диапазонов)
   if (isElectric) {
     const cand = cfg.utilEv.filter(r => powerKw >= r.kMin);
     const row = cand.length ? cand[cand.length - 1] : cfg.utilEv[cfg.utilEv.length - 1];
-    return isOlderThan3 ? row.cOld : row.cNew;
+    return pick(row);
   }
   const band = cfg.utilIce.filter(r => volumeCc >= r.vMin && volumeCc <= r.vMax);
   const cand = band.filter(r => powerKw >= r.kMin);
   const row = (cand.length ? cand[cand.length - 1] : band[band.length - 1])
            || cfg.utilIce[cfg.utilIce.length - 1];
-  return isOlderThan3 ? row.cOld : row.cNew;
+  return pick(row);
 }
 
 /* --- Таможенный сбор за оформление (по таможенной стоимости в ₽) --- */
@@ -206,14 +215,16 @@ function calculate(input, cfg) {
   const _prefCoef = cfg.utilPreferentialCoef || { new: 0.17, old: 0.26 };
   const _prefHp = cfg.utilPreferentialHp || { ice: 160, ev: 80 };
   const utilThresholdHp = input.isElectric ? _prefHp.ev : _prefHp.ice;
-  const utilPreferentialApplied = powerHp <= utilThresholdHp;
+  const utilPreferentialApplied = utilIsPreferential(cfg, !!input.isElectric, volumeCc, powerHp);
   const utilPreferentialFee = cfg.utilBase * (isOlderThan3 ? _prefCoef.old : _prefCoef.new);
   // Коммерческий утиль (выше льготы) индексируется каждый год; льготный — нет.
-  // utilNextCoef — коэффициент следующего года, input.util2027 — считать сразу по нему.
-  const utilNext = cfg.utilNext || { year: 2027, factor: 1.10 };
+  // utilNextCoef — коэффициент следующего года из перечня, input.util2027 — считать по нему.
+  const utilNext = cfg.utilNext || { year: 2027 };
   const utilCoefNow = findUtilCoef(cfg, !!input.isElectric, volumeCc, powerKw, powerHp, isOlderThan3);
   const utilCommercial = !utilPreferentialApplied;
-  const utilNextCoef = utilCommercial ? Math.round(utilCoefNow * utilNext.factor * 100) / 100 : utilCoefNow;
+  const utilNextCoef = utilCommercial
+    ? findUtilCoef(cfg, !!input.isElectric, volumeCc, powerKw, powerHp, isOlderThan3, 'next')
+    : utilCoefNow;
   const utilUsesNext = !!input.util2027 && utilCommercial;
   const utilCoef = utilUsesNext ? utilNextCoef : utilCoefNow;
   const utilFee = cfg.utilBase * utilCoef;

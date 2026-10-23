@@ -1281,8 +1281,10 @@ function buildClientOffer(car) {
     L.push('');
     L.push('ℹ️ Утильсбор ' + money(r.utilFee) +
       (r.utilFeeNext && !r.utilUsesNext ? ' (в ' + r.utilNextYear + ': ' + money(r.utilFeeNext) + ')' : '') +
-      ' — мощность выше льготного порога ' +
-      (r.utilThresholdHp || 160) + ' л.с.');
+      (Math.round(r.input && r.input.powerHp || 0) <= (r.utilThresholdHp || 160)
+        ? ' — объём больше 3 л, льгота не применяется'
+        : ' — мощность выше льготного порога ' +
+      (r.utilThresholdHp || 160) + ' л.с.'));
   }
 
   const snap = car.rates_snapshot || {};

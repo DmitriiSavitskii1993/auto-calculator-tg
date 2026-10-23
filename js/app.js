@@ -674,6 +674,8 @@ function renderResult(r) {
   if (r.utilThresholdHp) {
     if (r.utilPreferentialApplied) {
       utilFlag = `<div class="row sub" style="margin:4px 0 8px;padding:8px 10px;border-radius:8px;border-left:3px solid #27ae60;background:rgba(39,174,96,.10);font-size:12.5px;line-height:1.4">✅ <b>${powerHpR} л.с.</b> — в пределах льготного порога ${r.utilThresholdHp} л.с. Утильсбор льготный: <b style="color:#27ae60">${fmt(r.utilFee)}</b>.</div>`;
+    } else if (powerHpR <= r.utilThresholdHp) {
+      utilFlag = `<div class="row sub" style="margin:4px 0 8px;padding:8px 10px;border-radius:8px;border-left:3px solid #e74c3c;background:rgba(231,76,60,.10);font-size:12.5px;line-height:1.4">⚠️ Объём больше 3 л — льготный утиль не применяется даже при <b>${powerHpR} л.с.</b> Утиль <b style="color:#e74c3c">${fmt(r.utilFee)}</b>.</div>`;
     } else {
       const overpay = Math.max(0, r.utilFee - r.utilPreferentialFee);
       utilFlag = `<div class="row sub" style="margin:4px 0 8px;padding:8px 10px;border-radius:8px;border-left:3px solid #e74c3c;background:rgba(231,76,60,.10);font-size:12.5px;line-height:1.4">⚠️ <b>${powerHpR} л.с.</b> — выше льготного порога <b>${r.utilThresholdHp} л.с.</b> Утиль ${fmt(r.utilFee)} вместо льготных ${fmt(r.utilPreferentialFee)}. Переплата по утилю ≈ <b style="color:#e74c3c">${fmt(overpay)}</b>. Авто ≤${r.utilThresholdHp} л.с. попадает под льготу.</div>`;
