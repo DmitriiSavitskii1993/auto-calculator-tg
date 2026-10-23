@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Калькулятор авто из-за рубежа</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="css/style.css?v=202610231900">
+  <link rel="stylesheet" href="css/style.css?v=202610232000">
 </head>
 <body>
   <div class="app">
@@ -253,23 +253,23 @@
             <label for="routeDelivery">Доставка по Китаю до Уссурийска, ¥</label>
             <input type="text" id="routeDelivery" inputmode="decimal">
           </div>
-          <div class="field">
-            <label>Граница</label>
-            <div class="segmented" id="routeBorder" style="margin-bottom:0;background:var(--bg)">
+          <div class="seg-row">
+            <span class="seg-row-label">Граница</span>
+            <div class="segmented seg-compact" id="routeBorder">
               <button class="seg active" data-v="ussuriysk">Уссурийск</button>
               <button class="seg" data-v="khorgos">Хоргос</button>
             </div>
           </div>
-          <div class="field" id="routeConditionField">
-            <label>Авто</label>
-            <div class="segmented" id="routeCondition" style="margin-bottom:0;background:var(--bg)">
+          <div class="seg-row" id="routeConditionField">
+            <span class="seg-row-label">Авто</span>
+            <div class="segmented seg-compact" id="routeCondition">
               <button class="seg" data-v="new">Новый</button>
-              <button class="seg active" data-v="used">С пробегом (б/у)</button>
+              <button class="seg active" data-v="used">Б/у</button>
             </div>
           </div>
-          <div class="field">
-            <label>Таможня</label>
-            <div class="segmented" id="routeCustoms" style="margin-bottom:0;background:var(--bg)">
+          <div class="seg-row">
+            <span class="seg-row-label">Таможня</span>
+            <div class="segmented seg-compact" id="routeCustoms">
               <button class="seg active" data-v="rf">РФ</button>
               <button class="seg" data-v="kg">Бишкек</button>
             </div>
@@ -278,9 +278,9 @@
             <label for="routeKgDuty">Пошлина + брокер в Бишкеке, $</label>
             <input type="text" id="routeKgDuty" inputmode="decimal" placeholder="одной суммой">
           </div>
-          <div class="field">
-            <label>Логистика до</label>
-            <div class="segmented" id="routeCity" style="margin-bottom:0;background:var(--bg)">
+          <div class="seg-row">
+            <span class="seg-row-label">Логистика</span>
+            <div class="segmented seg-compact" id="routeCity">
               <button class="seg active" data-v="msk">Москва</button>
               <button class="seg" data-v="spb">Питер</button>
             </div>
@@ -613,13 +613,13 @@
   <!-- Плавающая кнопка «свернуть клавиатуру» (появляется при вводе) -->
   <button id="kbDone" class="kb-done hidden" type="button">▾ Свернуть</button>
 
-  <script src="js/data.js?v=202610231900"></script>
-  <script src="js/calc.js?v=202610231900"></script>
-  <script src="js/rates.js?v=202610231900"></script>
-  <script src="js/api.js?v=202610231900"></script>
-  <script src="js/base.js?v=202610231900"></script>
-  <script src="js/import.js?v=202610231900"></script>
-  <script src="js/route.js?v=202610231900"></script>
-  <script src="js/app.js?v=202610231900"></script>
+  <script src="js/data.js?v=202610232000"></script>
+  <script src="js/calc.js?v=202610232000"></script>
+  <script src="js/rates.js?v=202610232000"></script>
+  <script src="js/api.js?v=202610232000"></script>
+  <script src="js/base.js?v=202610232000"></script>
+  <script src="js/import.js?v=202610232000"></script>
+  <script src="js/route.js?v=202610232000"></script>
+  <script src="js/app.js?v=202610232000"></script>
 </body>
 </html>

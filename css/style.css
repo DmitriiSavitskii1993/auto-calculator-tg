@@ -296,3 +296,11 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 .wt-modal-label { font-size: 12.5px; color: var(--hint); margin: 10px 0 4px; }
 .wt-modal-field { width: 100%; box-sizing: border-box; font-size: 16px; padding: 8px 12px;
   border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); }
+
+/* Компактные переключатели раздела «Маршруты»: подпись слева, кнопки справа */
+.seg-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.seg-row-label { flex: 0 0 74px; font-size: 13px; color: var(--hint); line-height: 1.2; }
+.segmented.seg-compact { flex: 1; min-width: 0; margin-bottom: 0; padding: 3px; gap: 3px;
+  background: var(--bg); border-radius: 10px; }
+.seg-compact .seg { padding: 6px 4px; font-size: 13px; border-radius: 8px; }
+.seg-compact .seg:disabled { opacity: .35; cursor: default; }
