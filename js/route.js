@@ -60,17 +60,17 @@ function calculateRoute(inp, conf) {
   const viaKg = inp.customs === 'kg';
   const border = viaKg ? 'khorgos' : inp.border;
   // б/у через Хоргос: одна сумма в юанях за всю дорогу до Москвы/Питера
-  // (вместо долларовых ставок, включая Хоргос → Бишкек)
+  // (вместо долларовых ставок, включая Хоргос → Бишкек). Платится в Китай
+  // вместе с машиной — поэтому входит в расходы по Китаю и под комиссию банка.
   const usedKhorgos = border === 'khorgos' && inp.condition === 'used';
-  // Доставка 15 000 ¥ — только до Уссурийска. Логистику Хоргоса считаем
-  // отдельно, а не доставкой: иначе она попала бы в таможенную стоимость.
+  // Доставка 15 000 ¥ — только до Уссурийска. Логистику Хоргоса движку
+  // доставкой не передаём: иначе она попала бы в таможенную стоимость.
   const r = calculate(Object.assign(engineInput, {
     deliveryForeign: border === 'ussuriysk' ? (inp.deliveryForeign || 0) : 0,
     bankFeePercent: R.bankFeePercent,
     commission: 0, commissionManual: true, expenses: [],
   }), conf);
   const usd = conf.rates.market.USD;
-  const carBlock = r.carCostRub + r.bankFee;
   // Бишкек: пошлину платим там, но утильсбор РФ — всё равно наш
   const customs = viaKg ? r.utilFee : r.customsTotal;
   const kgTransitUsd = viaKg && !usedKhorgos ? R.kgTransitUsd : 0;
@@ -79,13 +79,15 @@ function calculateRoute(inp, conf) {
   const logisticsCny = usedKhorgos ? R.usedKhorgosLogisticsCny : 0;
   const logisticsUsd = usedKhorgos ? 0 : (viaKg ? R.kgLogisticsUsd : R.rfLogisticsUsd)[inp.city];
   const logisticsRub = usedKhorgos ? logisticsCny * conf.rates.market.CNY : logisticsUsd * usd;
+  const logisticsBankFee = usedKhorgos ? logisticsRub * R.bankFeePercent / 100 : 0;
+  const carBlock = r.carCostRub + r.bankFee + (usedKhorgos ? logisticsRub + logisticsBankFee : 0);
   const broker = R.brokerRub[border + (viaKg ? '_kg' : '_rf')];
-  const total = carBlock + customs + kgUsd * usd + logisticsRub + broker;
+  const total = carBlock + customs + kgUsd * usd + (usedKhorgos ? 0 : logisticsRub) + broker;
   return {
     country: 'cn', r, viaKg, border, city: inp.city, usd, usedKhorgos,
     carBlock, customs,
     kgTransitUsd, kgDutyUsd, kgUsd, kgRub: kgUsd * usd,
-    logisticsUsd, logisticsCny, logisticsRub,
+    logisticsUsd, logisticsCny, logisticsRub, logisticsBankFee,
     broker, total,
   };
 }
@@ -116,8 +118,11 @@ function routeSections(x, conf) {
 
   const foreign = [['Цена авто', fmtNum(r.input.carPrice) + ' ¥']];
   if (r.input.deliveryForeign) foreign.push(['До Уссурийска', fmtNum(r.input.deliveryForeign) + ' ¥']);
-  foreign.push(['Курс', rateCopy('cn', m)], ['В рублях', money(r.carCostRub)]);
-  if (r.bankFee > 0) foreign.push([`Банк ${r.bankFeePercent}%`, money(r.bankFee)]);
+  if (x.usedKhorgos) foreign.push(['Логистика до ' + (x.city === 'msk' ? 'Москвы' : 'Питера'), fmtNum(x.logisticsCny) + ' ¥']);
+  const inRub = r.carCostRub + (x.usedKhorgos ? x.logisticsRub : 0);
+  const bank = r.bankFee + x.logisticsBankFee;
+  foreign.push(['Курс', rateCopy('cn', m)], ['В рублях', money(inRub)]);
+  if (bank > 0) foreign.push([`Банк ${r.bankFeePercent}%`, money(bank)]);
   S.push({ head: ['РАСХОДЫ ПО КИТАЮ', money(x.carBlock)], items: foreign });
 
   const route = ROUTE_BORDER[x.border] + (x.viaKg ? ' → Бишкек' : '') + ' → ' + ROUTE_CITY[x.city];
@@ -131,10 +136,11 @@ function routeSections(x, conf) {
   } else {
     S.push({ head: ['ТАМОЖНЯ РФ', money(x.customs)], items: routeCustomsItems(r, conf, money) });
   }
-  S.push({ head: ['ЛОГИСТИКА', money(x.logisticsRub)], items: x.usedKhorgos
-    ? [['Хоргос → ' + ROUTE_CITY[x.city] + ' б/у', fmtNum(x.logisticsCny) + ' ¥'], ['Курс', rateCopy('cn', m)]]
-    : [[(x.viaKg ? 'Бишкек' : ROUTE_BORDER[x.border]) + ' → ' + ROUTE_CITY[x.city], usd(x.logisticsUsd)],
-       ['Курс', '$=' + m.USD + '₽']] });
+  if (!x.usedKhorgos) {
+    S.push({ head: ['ЛОГИСТИКА', money(x.logisticsRub)], items: [
+      [(x.viaKg ? 'Бишкек' : ROUTE_BORDER[x.border]) + ' → ' + ROUTE_CITY[x.city], usd(x.logisticsUsd)],
+      ['Курс', '$=' + m.USD + '₽']] });
+  }
   S.push({ head: ['БРОКЕР', money(x.broker)], items: [['Услуги под ключ', money(x.broker)]] });
   return { title: '🇨🇳 ' + route + (x.border === 'khorgos' ? (x.usedKhorgos ? ' · б/у' : ' · новый') : ''), params, sections: S, totalLabel: 'ИТОГО ДО ' + (x.city === 'msk' ? 'МОСКВЫ' : 'ПИТЕРА') };
 }
