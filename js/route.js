@@ -19,7 +19,6 @@ const ROUTE_KEY = 'wt_route_inputs_v1';
 const ROUTE_RATE_FIELDS = [
   { key: 'CNY', label: '¥ (CNY) → ₽' },
   { key: 'USD', label: '$ → ₽' },
-  { key: 'KRW1000', label: '₩1000 → ₽' },
 ];
 const ROUTE_BORDER = { ussuriysk: 'Уссурийск', khorgos: 'Хоргос' };
 const ROUTE_CITY = { msk: 'Москва', spb: 'Питер' };
@@ -237,6 +236,16 @@ function routeRenderRates() {
   $('#routeRates').innerHTML = ROUTE_RATE_FIELDS.map((f) =>
     `<label>${f.label}<input type="text" inputmode="decimal" data-rrate="${f.key}" value="${String(m[f.key] == null ? '' : m[f.key]).replace('.', ',')}"></label>`
   ).join('');
+  routeRateSummary();
+}
+
+/* курсы в свёрнутом заголовке — видно, по каким считаем, не раскрывая */
+function routeRateSummary() {
+  const v = (k) => {
+    const el = $('#routeRates [data-rrate="' + k + '"]');
+    return el && el.value ? el.value : '—';
+  };
+  $('#routeRateSummary').textContent = '¥ ' + v('CNY') + ' · $ ' + v('USD');
 }
 
 function routeApplyRates() {
@@ -380,7 +389,14 @@ function initRoute() {
     routeRender();
     $('#routeResult').classList.add('hidden');
   });
-  screen.addEventListener('input', () => $('#routeResult').classList.add('hidden'));
+  screen.addEventListener('input', (e) => {
+    $('#routeResult').classList.add('hidden');
+    if (e.target.closest('#routeRates')) routeRateSummary();
+  });
+  $('#routeRateToggle').addEventListener('click', () => {
+    const closed = $('#routeRateBody').classList.toggle('hidden');
+    $('#routeRateChevron').textContent = closed ? '▸' : '▾';
+  });
 
   if (!inTelegram) {
     const btn = document.createElement('button');

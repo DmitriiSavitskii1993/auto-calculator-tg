@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Калькулятор авто из-за рубежа</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="css/style.css?v=202610231600">
+  <link rel="stylesheet" href="css/style.css?v=202610231800">
 </head>
 <body>
   <div class="app">
@@ -226,9 +226,15 @@
     <!-- Экран распознавания скрина -->
     <!-- Раздел «Маршруты»: Китай через Уссурийск/Хоргос, таможня РФ или Бишкек; Корея -->
     <section id="screenRoute" class="screen hidden">
-      <section class="card">
-        <div class="card-head"><span>💱 Курсы на сегодня</span></div>
-        <div id="routeRates" class="grid2"></div>
+      <section class="card rate-card">
+        <div class="card-head rate-head" id="routeRateToggle">
+          <span>💱 Курсы на сегодня</span>
+          <span id="routeRateSummary" class="rate-summary"></span>
+          <span id="routeRateChevron" class="chevron">▸</span>
+        </div>
+        <div id="routeRateBody" class="hidden" style="margin-top:12px">
+          <div id="routeRates" class="grid2"></div>
+        </div>
       </section>
 
       <!-- Корея вернётся, когда будут её маршруты и ставки -->
@@ -607,13 +613,13 @@
   <!-- Плавающая кнопка «свернуть клавиатуру» (появляется при вводе) -->
   <button id="kbDone" class="kb-done hidden" type="button">▾ Свернуть</button>
 
-  <script src="js/data.js?v=202610231600"></script>
-  <script src="js/calc.js?v=202610231600"></script>
-  <script src="js/rates.js?v=202610231600"></script>
-  <script src="js/api.js?v=202610231600"></script>
-  <script src="js/base.js?v=202610231600"></script>
-  <script src="js/import.js?v=202610231600"></script>
-  <script src="js/route.js?v=202610231600"></script>
-  <script src="js/app.js?v=202610231600"></script>
+  <script src="js/data.js?v=202610231800"></script>
+  <script src="js/calc.js?v=202610231800"></script>
+  <script src="js/rates.js?v=202610231800"></script>
+  <script src="js/api.js?v=202610231800"></script>
+  <script src="js/base.js?v=202610231800"></script>
+  <script src="js/import.js?v=202610231800"></script>
+  <script src="js/route.js?v=202610231800"></script>
+  <script src="js/app.js?v=202610231800"></script>
 </body>
 </html>
