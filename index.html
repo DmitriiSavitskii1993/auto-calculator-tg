@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Калькулятор авто из-за рубежа</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="css/style.css?v=202610231200">
+  <link rel="stylesheet" href="css/style.css?v=202610231500">
 </head>
 <body>
   <div class="app">
@@ -231,7 +231,8 @@
         <div id="routeRates" class="grid2"></div>
       </section>
 
-      <div class="segmented" id="routeCountry">
+      <!-- Корея вернётся, когда будут её маршруты и ставки -->
+      <div class="segmented hidden" id="routeCountry">
         <button class="seg active" data-v="cn">🇨🇳 Китай</button>
         <button class="seg" data-v="kr">🇰🇷 Корея</button>
       </div>
@@ -242,8 +243,8 @@
           <input type="text" id="routePrice" inputmode="decimal" placeholder="120000">
         </div>
         <div id="routeCnBlock">
-          <div class="field">
-            <label for="routeDelivery">Доставка по Китаю до границы, ¥</label>
+          <div class="field" id="routeDeliveryField">
+            <label for="routeDelivery">Доставка по Китаю до Уссурийска, ¥</label>
             <input type="text" id="routeDelivery" inputmode="decimal">
           </div>
           <div class="field">
@@ -251,6 +252,13 @@
             <div class="segmented" id="routeBorder" style="margin-bottom:0;background:var(--bg)">
               <button class="seg active" data-v="ussuriysk">Уссурийск</button>
               <button class="seg" data-v="khorgos">Хоргос</button>
+            </div>
+          </div>
+          <div class="field" id="routeConditionField">
+            <label>Авто</label>
+            <div class="segmented" id="routeCondition" style="margin-bottom:0;background:var(--bg)">
+              <button class="seg" data-v="new">Новый</button>
+              <button class="seg active" data-v="used">С пробегом (б/у)</button>
             </div>
           </div>
           <div class="field">
@@ -276,7 +284,7 @@
       </section>
 
       <section class="card" id="routeDutyBlock">
-        <div class="card-head"><span>Для расчёта пошлины (физлицо)</span></div>
+        <div class="card-head"><span id="routeDutyTitle">Для расчёта пошлины (физлицо)</span></div>
         <label class="switch-row" style="padding:0 0 10px">
           <span>Электрокар</span>
           <input type="checkbox" id="routeIsElectric" class="switch">
@@ -599,13 +607,13 @@
   <!-- Плавающая кнопка «свернуть клавиатуру» (появляется при вводе) -->
   <button id="kbDone" class="kb-done hidden" type="button">▾ Свернуть</button>
 
-  <script src="js/data.js?v=202610231200"></script>
-  <script src="js/calc.js?v=202610231200"></script>
-  <script src="js/rates.js?v=202610231200"></script>
-  <script src="js/api.js?v=202610231200"></script>
-  <script src="js/base.js?v=202610231200"></script>
-  <script src="js/import.js?v=202610231200"></script>
-  <script src="js/route.js?v=202610231200"></script>
-  <script src="js/app.js?v=202610231200"></script>
+  <script src="js/data.js?v=202610231500"></script>
+  <script src="js/calc.js?v=202610231500"></script>
+  <script src="js/rates.js?v=202610231500"></script>
+  <script src="js/api.js?v=202610231500"></script>
+  <script src="js/base.js?v=202610231500"></script>
+  <script src="js/import.js?v=202610231500"></script>
+  <script src="js/route.js?v=202610231500"></script>
+  <script src="js/app.js?v=202610231500"></script>
 </body>
 </html>

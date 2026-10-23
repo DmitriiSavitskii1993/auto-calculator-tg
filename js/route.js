@@ -3,8 +3,9 @@
  *
  *  Китай: граница Уссурийск или Хоргос, растаможка в РФ (пошлина для физлица
  *  тем же calculate(), что и в основном калькуляторе) или в Бишкеке (пошлина
- *  и брокер Киргизии вписываются одной суммой в долларах). Логистика до
- *  Москвы/Питера — в долларах, брокер «под ключ» — в рублях.
+ *  и брокер Киргизии — одной суммой в долларах, утильсбор РФ — нашим движком).
+ *  Логистика до Москвы/Питера — в долларах, у б/у через Хоргос — фикс в юанях.
+ *  Брокер «под ключ» — в рублях.
  *  Корея: считается как в основном калькуляторе.
  *
  *  Коллегам из ROUTE_ONLY_IDS приложение показывает только этот раздел.
@@ -24,7 +25,7 @@ const ROUTE_BORDER = { ussuriysk: 'Уссурийск', khorgos: 'Хоргос' 
 const ROUTE_CITY = { msk: 'Москва', spb: 'Питер' };
 
 const routeState = {
-  country: 'cn', border: 'ussuriysk', customs: 'rf', city: 'msk',
+  country: 'cn', border: 'ussuriysk', customs: 'rf', city: 'msk', condition: 'used',
   isElectric: false, powerUnit: 'hp',
 };
 let routeLast = null;   // { lines, plain } последнего расчёта — для копирования и отправки
@@ -35,8 +36,8 @@ function isRouteOnly() {
 }
 
 /* --- расчёт (чистая функция, без DOM) ---
- * inp = { country, carPrice, deliveryForeign, border, customs, city, kgDutyUsd,
- *         isElectric, age, volumeCc, powerHp, powerKw } */
+ * inp = { country, carPrice, deliveryForeign, border, customs, city, condition,
+ *         kgDutyUsd, isElectric, age, volumeCc, powerHp, powerKw } */
 function calculateRoute(inp, conf) {
   const engineInput = {
     country: inp.country, isElectric: !!inp.isElectric, age: inp.age,
@@ -59,26 +60,33 @@ function calculateRoute(inp, conf) {
   const R = conf.routeCn || CALC_DATA.routeCn;
   const viaKg = inp.customs === 'kg';
   const border = viaKg ? 'khorgos' : inp.border;
-  // Движок нужен целиком только при таможне в РФ; для Бишкека берём из него
-  // лишь перевод цены по коммерческому курсу и комиссию банка.
+  // б/у через Хоргос: одна сумма в юанях за всю дорогу до Москвы/Питера
+  // (вместо долларовых ставок, включая Хоргос → Бишкек)
+  const usedKhorgos = border === 'khorgos' && inp.condition === 'used';
+  // Доставка 15 000 ¥ — только до Уссурийска. Логистику Хоргоса считаем
+  // отдельно, а не доставкой: иначе она попала бы в таможенную стоимость.
   const r = calculate(Object.assign(engineInput, {
-    deliveryForeign: inp.deliveryForeign || 0,
+    deliveryForeign: border === 'ussuriysk' ? (inp.deliveryForeign || 0) : 0,
     bankFeePercent: R.bankFeePercent,
     commission: 0, commissionManual: true, expenses: [],
   }), conf);
   const usd = conf.rates.market.USD;
   const carBlock = r.carCostRub + r.bankFee;
-  const customs = viaKg ? 0 : r.customsTotal;
-  const kgUsd = viaKg ? R.kgTransitUsd + (inp.kgDutyUsd || 0) : 0;
-  const logisticsUsd = (viaKg ? R.kgLogisticsUsd : R.rfLogisticsUsd)[inp.city];
+  // Бишкек: пошлину платим там, но утильсбор РФ — всё равно наш
+  const customs = viaKg ? r.utilFee : r.customsTotal;
+  const kgTransitUsd = viaKg && !usedKhorgos ? R.kgTransitUsd : 0;
+  const kgDutyUsd = viaKg ? (inp.kgDutyUsd || 0) : 0;
+  const kgUsd = kgTransitUsd + kgDutyUsd;
+  const logisticsCny = usedKhorgos ? R.usedKhorgosLogisticsCny : 0;
+  const logisticsUsd = usedKhorgos ? 0 : (viaKg ? R.kgLogisticsUsd : R.rfLogisticsUsd)[inp.city];
+  const logisticsRub = usedKhorgos ? logisticsCny * conf.rates.market.CNY : logisticsUsd * usd;
   const broker = R.brokerRub[border + (viaKg ? '_kg' : '_rf')];
-  const total = carBlock + customs + kgUsd * usd + logisticsUsd * usd + broker;
+  const total = carBlock + customs + kgUsd * usd + logisticsRub + broker;
   return {
-    country: 'cn', r, viaKg, border, city: inp.city, usd,
+    country: 'cn', r, viaKg, border, city: inp.city, usd, usedKhorgos,
     carBlock, customs,
-    kgTransitUsd: viaKg ? R.kgTransitUsd : 0, kgDutyUsd: viaKg ? (inp.kgDutyUsd || 0) : 0,
-    kgUsd, kgRub: kgUsd * usd,
-    logisticsUsd, logisticsRub: logisticsUsd * usd,
+    kgTransitUsd, kgDutyUsd, kgUsd, kgRub: kgUsd * usd,
+    logisticsUsd, logisticsCny, logisticsRub,
     broker, total,
   };
 }
@@ -107,27 +115,29 @@ function routeSections(x, conf) {
     return { title: '🇰🇷 Корея → Владивосток', params, sections: S, totalLabel: 'ИТОГО ПОД КЛЮЧ' };
   }
 
-  const foreign = [['Цена авто', fmtNum(r.input.carPrice) + ' ¥'], ['Доставка по Китаю', fmtNum(r.input.deliveryForeign) + ' ¥'],
-    ['Курс', rateCopy('cn', m)], ['В рублях', money(r.carCostRub)]];
+  const foreign = [['Цена авто', fmtNum(r.input.carPrice) + ' ¥']];
+  if (r.input.deliveryForeign) foreign.push(['До Уссурийска', fmtNum(r.input.deliveryForeign) + ' ¥']);
+  foreign.push(['Курс', rateCopy('cn', m)], ['В рублях', money(r.carCostRub)]);
   if (r.bankFee > 0) foreign.push([`Банк ${r.bankFeePercent}%`, money(r.bankFee)]);
   S.push({ head: ['РАСХОДЫ ПО КИТАЮ', money(x.carBlock)], items: foreign });
 
   const route = ROUTE_BORDER[x.border] + (x.viaKg ? ' → Бишкек' : '') + ' → ' + ROUTE_CITY[x.city];
   if (x.viaKg) {
-    S.push({ head: ['БИШКЕК', money(x.kgRub)], items: [
-      ['Хоргос → Бишкек', usd(x.kgTransitUsd)],
-      ['Пошлина+брокер КР', x.kgDutyUsd ? usd(x.kgDutyUsd) : 'не указано'],
-      ['Курс', '$=' + m.USD + '₽'],
-    ] });
+    const kg = [];
+    if (x.kgTransitUsd) kg.push(['Хоргос → Бишкек', usd(x.kgTransitUsd)]);
+    kg.push(['Пошлина+брокер КР', x.kgDutyUsd ? usd(x.kgDutyUsd) : 'не указано']);
+    kg.push(['Курс', '$=' + m.USD + '₽']);
+    S.push({ head: ['БИШКЕК', money(x.kgRub)], items: kg });
+    S.push({ head: ['УТИЛЬСБОР РФ', money(x.customs)], items: [[`Утиль (${r.utilCoef})`, money(r.utilFee)]] });
   } else {
     S.push({ head: ['ТАМОЖНЯ РФ', money(x.customs)], items: routeCustomsItems(r, conf, money) });
   }
-  S.push({ head: ['ЛОГИСТИКА', money(x.logisticsRub)], items: [
-    [(x.viaKg ? 'Бишкек' : ROUTE_BORDER[x.border]) + ' → ' + ROUTE_CITY[x.city], usd(x.logisticsUsd)],
-    ['Курс', '$=' + m.USD + '₽'],
-  ] });
+  S.push({ head: ['ЛОГИСТИКА', money(x.logisticsRub)], items: x.usedKhorgos
+    ? [['Хоргос → ' + ROUTE_CITY[x.city] + ' б/у', fmtNum(x.logisticsCny) + ' ¥'], ['Курс', rateCopy('cn', m)]]
+    : [[(x.viaKg ? 'Бишкек' : ROUTE_BORDER[x.border]) + ' → ' + ROUTE_CITY[x.city], usd(x.logisticsUsd)],
+       ['Курс', '$=' + m.USD + '₽']] });
   S.push({ head: ['БРОКЕР', money(x.broker)], items: [['Услуги под ключ', money(x.broker)]] });
-  return { title: '🇨🇳 ' + route, params: x.viaKg ? '' : params, sections: S, totalLabel: 'ИТОГО ДО ' + (x.city === 'msk' ? 'МОСКВЫ' : 'ПИТЕРА') };
+  return { title: '🇨🇳 ' + route + (x.border === 'khorgos' ? (x.usedKhorgos ? ' · б/у' : ' · новый') : ''), params, sections: S, totalLabel: 'ИТОГО ДО ' + (x.city === 'msk' ? 'МОСКВЫ' : 'ПИТЕРА') };
 }
 
 function routeCustomsItems(r, conf, money) {
@@ -189,6 +199,7 @@ function routeRender() {
   $$('#routeBorder .seg').forEach((b) => b.classList.toggle('active', b.dataset.v === s.border));
   $$('#routeCustoms .seg').forEach((b) => b.classList.toggle('active', b.dataset.v === s.customs));
   $$('#routeCity .seg').forEach((b) => b.classList.toggle('active', b.dataset.v === s.city));
+  $$('#routeCondition .seg').forEach((b) => b.classList.toggle('active', b.dataset.v === s.condition));
   $$('#routePowerUnit .unit').forEach((b) => b.classList.toggle('active', b.dataset.unit === s.powerUnit));
   const kgBtn = $('#routeCustoms [data-v="kg"]');
   if (kgBtn) kgBtn.disabled = s.border === 'ussuriysk';
@@ -196,18 +207,23 @@ function routeRender() {
   $('#routeCur').textContent = isCn ? '¥' : '₩';
   $('#routeCnBlock').classList.toggle('hidden', !isCn);
   $('#routeKgBlock').classList.toggle('hidden', !viaKg);
-  $('#routeDutyBlock').classList.toggle('hidden', viaKg);
+  const usedKhorgos = isCn && s.border === 'khorgos' && s.condition === 'used';
+  $('#routeDutyBlock').classList.toggle('hidden', false);
+  $('#routeDutyTitle').textContent = viaKg ? 'Для расчёта утильсбора РФ' : 'Для расчёта пошлины (физлицо)';
+  $('#routeDeliveryField').classList.toggle('hidden', s.border !== 'ussuriysk');
+  $('#routeConditionField').classList.toggle('hidden', s.border !== 'khorgos');
   $('#routeVolumeField').classList.toggle('hidden', s.isElectric);
   $('#routeIsElectric').checked = s.isElectric;
 
   const R = cfg.routeCn || CALC_DATA.routeCn;
   const prices = viaKg ? R.kgLogisticsUsd : R.rfLogisticsUsd;
   $$('#routeCity .seg').forEach((b) => {
-    b.textContent = ROUTE_CITY[b.dataset.v] + ' $' + fmtNum(prices[b.dataset.v]);
+    b.textContent = ROUTE_CITY[b.dataset.v] + (usedKhorgos ? '' : ' $' + fmtNum(prices[b.dataset.v]));
   });
   const brokerKey = (viaKg ? 'khorgos' : s.border) + (viaKg ? '_kg' : '_rf');
   $('#routeBrokerHint').textContent = 'Брокер под ключ: ' + fmtNum(R.brokerRub[brokerKey]) + ' ₽' +
-    (viaKg ? ' · Хоргос → Бишкек $' + fmtNum(R.kgTransitUsd) : '');
+    (usedKhorgos ? ' · логистика б/у до Москвы/Питера ' + fmtNum(R.usedKhorgosLogisticsCny) + ' ¥'
+      : (viaKg ? ' · Хоргос → Бишкек $' + fmtNum(R.kgTransitUsd) : ''));
 
   const ageSel = $('#routeAge');
   const opts = s.isElectric ? CALC_DATA.ageOptionsEv : CALC_DATA.ageOptions;
@@ -249,9 +265,10 @@ function routeRestore() {
   const R = cfg.routeCn || CALC_DATA.routeCn;
   $('#routeDelivery').value = R.deliveryForeign;
   if (!d) return;
-  ['country', 'border', 'customs', 'city', 'isElectric', 'powerUnit'].forEach((k) => {
+  ['country', 'border', 'customs', 'city', 'condition', 'isElectric', 'powerUnit'].forEach((k) => {
     if (d[k] !== undefined) routeState[k] = d[k];
   });
+  routeState.country = 'cn';   // вкладка Кореи пока скрыта
   routeRender();
   if (d.price) $('#routePrice').value = d.price;
   if (d.delivery) $('#routeDelivery').value = d.delivery;
@@ -270,7 +287,7 @@ function onRouteCalculate() {
   const viaKg = s.country === 'cn' && s.customs === 'kg';
   const power = routeNum('#routePower');
   const inp = {
-    country: s.country, border: s.border, customs: s.customs, city: s.city,
+    country: s.country, border: s.border, customs: s.customs, city: s.city, condition: s.condition,
     carPrice: routeNum('#routePrice'), deliveryForeign: routeNum('#routeDelivery'),
     kgDutyUsd: routeNum('#routeKgDuty'),
     isElectric: s.isElectric, age: $('#routeAge').value,
@@ -279,11 +296,10 @@ function onRouteCalculate() {
     powerKw: s.powerUnit === 'kw' ? power : null,
   };
   if (!inp.carPrice) { toast('Укажите цену авто'); return; }
-  if (!viaKg) {
-    if (!s.isElectric && !inp.volumeCc) { toast('Укажите объём двигателя'); return; }
-    if (!power) { toast('Укажите мощность'); return; }
-  }
-  if (viaKg && !cfg.rates.market.USD) { toast('Укажите курс доллара'); return; }
+  // объём и мощность нужны всегда: от них и пошлина РФ, и утильсбор при Бишкеке
+  if (!s.isElectric && !inp.volumeCc) { toast('Укажите объём двигателя'); return; }
+  if (!power) { toast('Укажите мощность'); return; }
+  if (s.country === 'cn' && !cfg.rates.market.USD) { toast('Укажите курс доллара'); return; }
   routeSave();
 
   const x = calculateRoute(inp, cfg);
@@ -332,7 +348,8 @@ function initRoute() {
     const seg = e.target.closest('.seg[data-v]');
     if (seg && !seg.disabled) {
       const group = seg.parentElement.id;
-      const key = { routeCountry: 'country', routeBorder: 'border', routeCustoms: 'customs', routeCity: 'city' }[group];
+      const key = { routeCountry: 'country', routeBorder: 'border', routeCustoms: 'customs',
+        routeCity: 'city', routeCondition: 'condition' }[group];
       if (key) {
         routeState[key] = seg.dataset.v;
         haptic('light');
