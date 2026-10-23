@@ -35,6 +35,7 @@ const ALL_RATE_FIELDS = [
   { key: 'JPY100_ATB', label: '¥ за 100 (АТБ)', step: 0.01 },
   { key: 'CNY', label: '¥ (CNY) за 1', step: 0.01 },
   { key: 'KRW1000', label: '₩ за 1000 → ₽', step: 0.01 },
+  { key: 'USD', label: '$ за 1 → ₽', step: 0.01 },
 ];
 
 /* --- утилиты --- */
@@ -150,6 +151,7 @@ function init() {
   setupMainButton();
   setupKeyboardDone();
   setupEnterToCalc();
+  if (typeof initRoute === 'function') initRoute();  // раздел «Маршруты» (до initBase: тот выбирает режим)
   if (typeof initBase === 'function') initBase();  // режим «База» и её экран
   hydrateFromCloud();   // подтянуть сохранённые курсы/настройки/поля из облака Telegram
 }
@@ -205,7 +207,7 @@ async function hydrateFromCloud() {
 /* ===================== ПЕРЕКЛЮЧЕНИЕ ЭКРАНОВ =====================
  * Экраны — сиблинги, переключаются классом .hidden. Единая точка, чтобы
  * добавление нового экрана не требовало править вызовы по всему файлу. */
-const SCREENS = ['screenCalc', 'screenSettings', 'screenBase', 'screenExtract', 'screenImport'];
+const SCREENS = ['screenCalc', 'screenSettings', 'screenBase', 'screenExtract', 'screenImport', 'screenRoute'];
 
 function showScreen(id) {
   SCREENS.forEach((s) => {
@@ -214,7 +216,7 @@ function showScreen(id) {
   });
   // переключатель режима имеет смысл только на экране расчёта
   const tabs = $('#modeTabs');
-  if (tabs) tabs.classList.toggle('hidden', id !== 'screenCalc');
+  if (tabs) tabs.classList.toggle('hidden', id !== 'screenCalc' && id !== 'screenRoute');
   setMainButtonFor(id);
 }
 
@@ -233,7 +235,9 @@ function setMainButton(text, handler) {
 }
 
 function setMainButtonFor(screenId) {
-  if (screenId === 'screenCalc') {
+  if (screenId === 'screenRoute') {
+    setMainButton('Рассчитать', onRouteCalculate);
+  } else if (screenId === 'screenCalc') {
     setMainButton(
       state.mode === 'base' ? 'Рассчитать и сохранить' : 'Рассчитать стоимость',
       onCalculate,

@@ -55,6 +55,9 @@ bot.command('start', async (ctx) => {
   }
 });
 
+// Свой Telegram ID — чтобы выдать доступ (белый список базы, раздел «Маршруты»)
+bot.command('id', (ctx) => ctx.reply('Ваш Telegram ID: ' + ctx.from.id));
+
 bot.command('calc', async (ctx) => {
   const kb = new InlineKeyboard().webApp('🧮 Открыть калькулятор', WEBAPP_URL);
   await ctx.reply('Открыть калькулятор:', { reply_markup: kb });

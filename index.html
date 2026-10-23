@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Калькулятор авто из-за рубежа</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="css/style.css?v=202610182000">
+  <link rel="stylesheet" href="css/style.css?v=202610231200">
 </head>
 <body>
   <div class="app">
@@ -21,6 +21,7 @@
     <div class="segmented" id="modeTabs">
       <button class="seg active" data-mode="client">👤 Клиент</button>
       <button class="seg" data-mode="base">🗄 База</button>
+      <button class="seg" data-mode="route">🛣 Маршруты</button>
     </div>
 
     <!-- Основной экран -->
@@ -223,6 +224,86 @@
     </main>
 
     <!-- Экран распознавания скрина -->
+    <!-- Раздел «Маршруты»: Китай через Уссурийск/Хоргос, таможня РФ или Бишкек; Корея -->
+    <section id="screenRoute" class="screen hidden">
+      <section class="card">
+        <div class="card-head"><span>💱 Курсы на сегодня</span></div>
+        <div id="routeRates" class="grid2"></div>
+      </section>
+
+      <div class="segmented" id="routeCountry">
+        <button class="seg active" data-v="cn">🇨🇳 Китай</button>
+        <button class="seg" data-v="kr">🇰🇷 Корея</button>
+      </div>
+
+      <section class="card">
+        <div class="field">
+          <label for="routePrice">Стоимость авто, <span class="cur" id="routeCur">¥</span></label>
+          <input type="text" id="routePrice" inputmode="decimal" placeholder="120000">
+        </div>
+        <div id="routeCnBlock">
+          <div class="field">
+            <label for="routeDelivery">Доставка по Китаю до границы, ¥</label>
+            <input type="text" id="routeDelivery" inputmode="decimal">
+          </div>
+          <div class="field">
+            <label>Граница</label>
+            <div class="segmented" id="routeBorder" style="margin-bottom:0;background:var(--bg)">
+              <button class="seg active" data-v="ussuriysk">Уссурийск</button>
+              <button class="seg" data-v="khorgos">Хоргос</button>
+            </div>
+          </div>
+          <div class="field">
+            <label>Таможня</label>
+            <div class="segmented" id="routeCustoms" style="margin-bottom:0;background:var(--bg)">
+              <button class="seg active" data-v="rf">РФ</button>
+              <button class="seg" data-v="kg">Бишкек</button>
+            </div>
+          </div>
+          <div class="field" id="routeKgBlock">
+            <label for="routeKgDuty">Пошлина + брокер в Бишкеке, $</label>
+            <input type="text" id="routeKgDuty" inputmode="decimal" placeholder="одной суммой">
+          </div>
+          <div class="field">
+            <label>Логистика до</label>
+            <div class="segmented" id="routeCity" style="margin-bottom:0;background:var(--bg)">
+              <button class="seg active" data-v="msk">Москва</button>
+              <button class="seg" data-v="spb">Питер</button>
+            </div>
+          </div>
+          <p class="hint" id="routeBrokerHint"></p>
+        </div>
+      </section>
+
+      <section class="card" id="routeDutyBlock">
+        <div class="card-head"><span>Для расчёта пошлины (физлицо)</span></div>
+        <label class="switch-row" style="padding:0 0 10px">
+          <span>Электрокар</span>
+          <input type="checkbox" id="routeIsElectric" class="switch">
+        </label>
+        <div class="field">
+          <label for="routeAge">Возраст авто</label>
+          <select id="routeAge"></select>
+        </div>
+        <div class="field" id="routeVolumeField">
+          <label for="routeVolume">Объём двигателя, см³</label>
+          <input type="text" id="routeVolume" inputmode="numeric" placeholder="1500">
+        </div>
+        <div class="field">
+          <label for="routePower">Мощность</label>
+          <div class="input-group">
+            <input type="text" id="routePower" inputmode="numeric" placeholder="150">
+            <div class="unit-toggle" id="routePowerUnit">
+              <button class="unit active" data-unit="hp" type="button">л.с.</button>
+              <button class="unit" data-unit="kw" type="button">кВт</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="routeResult" class="result hidden"></section>
+    </section>
+
     <section id="screenExtract" class="screen hidden">
       <div class="settings-head">
         <button id="btnExtractBack" class="icon-btn" type="button">←</button>
@@ -518,12 +599,13 @@
   <!-- Плавающая кнопка «свернуть клавиатуру» (появляется при вводе) -->
   <button id="kbDone" class="kb-done hidden" type="button">▾ Свернуть</button>
 
-  <script src="js/data.js?v=202610182000"></script>
-  <script src="js/calc.js?v=202610182000"></script>
-  <script src="js/rates.js?v=202610182000"></script>
-  <script src="js/api.js?v=202610182000"></script>
-  <script src="js/base.js?v=202610182000"></script>
-  <script src="js/import.js?v=202610182000"></script>
-  <script src="js/app.js?v=202610182000"></script>
+  <script src="js/data.js?v=202610231200"></script>
+  <script src="js/calc.js?v=202610231200"></script>
+  <script src="js/rates.js?v=202610231200"></script>
+  <script src="js/api.js?v=202610231200"></script>
+  <script src="js/base.js?v=202610231200"></script>
+  <script src="js/import.js?v=202610231200"></script>
+  <script src="js/route.js?v=202610231200"></script>
+  <script src="js/app.js?v=202610231200"></script>
 </body>
 </html>

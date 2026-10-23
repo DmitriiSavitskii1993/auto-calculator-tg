@@ -1864,7 +1864,13 @@ function bindBaseEvents() {
 
 /* --- переключатель режима --- */
 function applyMode() {
+  if (window.routeOnly) state.mode = 'route';
   const isBase = state.mode === 'base';
+  const route = $('#screenRoute');
+  if (route) {
+    if (state.mode === 'route') showScreen('screenRoute');
+    else if (!route.classList.contains('hidden')) showScreen('screenCalc');
+  }
   $$('#modeTabs .seg').forEach((b) => b.classList.toggle('active', b.dataset.mode === state.mode));
   const vc = $('#cardVehicle'); if (vc) vc.classList.toggle('hidden', !isBase);
   const ba = $('#baseActions'); if (ba) ba.classList.toggle('hidden', !isBase);
