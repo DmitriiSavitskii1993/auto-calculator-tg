@@ -13,7 +13,7 @@
 
 // Telegram ID коллег, которым доступен только этот раздел (свой ID бот
 // подскажет по команде /id)
-const ROUTE_ONLY_IDS = [];
+const ROUTE_ONLY_IDS = [485810934];
 
 const ROUTE_KEY = 'wt_route_inputs_v1';
 const ROUTE_RATE_FIELDS = [
